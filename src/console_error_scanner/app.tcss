@@ -1,0 +1,41 @@
+/* Console Error Scanner - Textual CSS */
+
+Screen {
+    layout: vertical;
+}
+
+#main-container {
+    height: 1fr;
+    layout: horizontal;
+}
+
+#left-panel {
+    width: 60%;
+    height: 1fr;
+    layout: vertical;
+}
+
+#results-table {
+    height: 1fr;
+}
+
+#scan-log {
+    height: 15;
+    min-height: 5;
+    max-height: 30;
+    border-top: solid $accent;
+    display: block;
+}
+
+#scan-log.hidden {
+    display: none;
+}
+
+#error-detail {
+    width: 40%;
+    height: 1fr;
+}
+
+#summary {
+    height: auto;
+}

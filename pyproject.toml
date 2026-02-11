@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "console-error-scanner"
+version = "1.0.0"
+description = "TUI tool to scan websites for console errors and HTTP errors"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "Michael Blaess"}]
+dependencies = [
+    "textual>=0.40",
+    "rich>=13.0",
+    "playwright>=1.40",
+    "httpx>=0.25",
+]
+
+[project.scripts]
+console-error-scanner = "console_error_scanner.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
