@@ -28,6 +28,8 @@ USAGE_EXAMPLES = """
 Beispiele:
   console-error-scanner https://example.com
   console-error-scanner https://example.com/sitemap.xml
+  console-error-scanner sitemap.xml
+  console-error-scanner C:\\output\\sitemap_example-com_20260214.xml
   console-error-scanner https://example.com --concurrency 12
   console-error-scanner https://example.com --output-html report.html
   console-error-scanner https://example.com/sitemap.xml --console-level error
@@ -56,8 +58,8 @@ def main() -> None:
         "sitemap_url",
         nargs="?",
         default="",
-        metavar="URL",
-        help="URL der Website oder Sitemap (XML). Bei Domain-URLs wird die Sitemap automatisch gesucht.",
+        metavar="URL_OR_FILE",
+        help="URL der Website, Sitemap-URL oder lokale sitemap.xml Datei. Bei Domain-URLs wird die Sitemap automatisch gesucht.",
     )
     parser.add_argument(
         "--concurrency", "-c",

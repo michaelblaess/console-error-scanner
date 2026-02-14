@@ -22,7 +22,7 @@ from . import __version__, __year__
 from .models.history import History, HistoryEntry
 from .models.settings import Settings
 from .models.scan_result import ScanResult, ScanSummary, PageStatus
-from .models.sitemap import SitemapParser, SitemapError, discover_sitemap, is_sitemap_url
+from .models.sitemap import SitemapParser, SitemapError, discover_sitemap, is_sitemap_url, is_local_file
 from .models.whitelist import Whitelist
 from .services.reporter import Reporter
 from .services.scanner import Scanner
@@ -206,8 +206,11 @@ class ConsoleErrorScannerApp(App):
         """
         self._start_sitemap_loading()
 
-        # Auto-Discovery wenn keine direkte Sitemap-URL
-        if not is_sitemap_url(self.sitemap_url):
+        # Lokale Datei: direkt laden, keine Discovery
+        if is_local_file(self.sitemap_url):
+            self._write_log(f"Lade lokale Sitemap: {self.sitemap_url}")
+        elif not is_sitemap_url(self.sitemap_url):
+            # Auto-Discovery wenn keine direkte Sitemap-URL
             self._write_log(f"Suche Sitemap fuer: {self.sitemap_url}")
             try:
                 self.sitemap_url = await discover_sitemap(
@@ -222,8 +225,9 @@ class ConsoleErrorScannerApp(App):
                     _SitemapErrorScreen(f"Sitemap-Fehler:\n\n{e}")
                 )
                 return
-
-        self._write_log(f"Lade Sitemap: {self.sitemap_url}")
+            self._write_log(f"Lade Sitemap: {self.sitemap_url}")
+        else:
+            self._write_log(f"Lade Sitemap: {self.sitemap_url}")
 
         try:
             parser = SitemapParser(self.sitemap_url, url_filter=self.url_filter, cookies=self.cookies)

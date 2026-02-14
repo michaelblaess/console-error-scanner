@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 import httpx
@@ -32,6 +33,20 @@ def is_sitemap_url(url: str) -> bool:
     """
     path = urlparse(url).path.lower()
     return path.endswith(".xml")
+
+
+def is_local_file(path: str) -> bool:
+    """Prueft ob der Pfad auf eine lokale Datei zeigt.
+
+    Args:
+        path: Der zu pruefende Pfad oder URL.
+
+    Returns:
+        True wenn es ein existierender lokaler Dateipfad ist.
+    """
+    if path.lower().startswith(("http://", "https://")):
+        return False
+    return Path(path).is_file()
 
 
 class SitemapParser:
@@ -66,14 +81,18 @@ class SitemapParser:
         return urls
 
     async def _fetch_sitemap(self) -> str:
-        """Laedt die Sitemap per HTTP mit Retry-Logik.
+        """Laedt die Sitemap per HTTP oder aus lokaler Datei.
 
         Returns:
             XML-Inhalt der Sitemap als String.
 
         Raises:
-            SitemapError: Wenn die Sitemap nach 3 Versuchen nicht geladen werden kann.
+            SitemapError: Wenn die Sitemap nicht geladen werden kann.
         """
+        # Lokale Datei direkt lesen
+        if is_local_file(self.sitemap_url):
+            return self._read_local_file(self.sitemap_url)
+
         max_retries = 3
         last_error = None
 
@@ -101,6 +120,29 @@ class SitemapParser:
                     await asyncio.sleep(wait_time)
 
         raise SitemapError(f"Sitemap konnte nach {max_retries} Versuchen nicht geladen werden: {last_error}")
+
+    @staticmethod
+    def _read_local_file(file_path: str) -> str:
+        """Liest eine lokale Sitemap-XML-Datei.
+
+        Args:
+            file_path: Pfad zur lokalen XML-Datei.
+
+        Returns:
+            Datei-Inhalt als String.
+
+        Raises:
+            SitemapError: Wenn die Datei nicht gelesen werden kann.
+        """
+        try:
+            return Path(file_path).read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            try:
+                return Path(file_path).read_text(encoding="latin-1")
+            except Exception as e:
+                raise SitemapError(f"Datei konnte nicht gelesen werden: {file_path} ({e})")
+        except Exception as e:
+            raise SitemapError(f"Datei konnte nicht gelesen werden: {file_path} ({e})")
 
     def _parse_xml(self, xml_content: str) -> list[str]:
         """Parst den XML-Inhalt und extrahiert URLs.
