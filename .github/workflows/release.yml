@@ -16,7 +16,7 @@ jobs:
           - os: windows-latest
             artifact: console-error-scanner-win-x64
             ext: zip
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             artifact: console-error-scanner-linux-x64
             ext: tar.gz
           - os: macos-latest
