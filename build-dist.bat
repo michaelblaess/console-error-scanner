@@ -190,7 +190,7 @@ echo  ║   Ausgabe: dist\console-error-scanner\       ║
 echo  ║                                              ║
 echo  ║   Testen:                                    ║
 echo  ║     cd dist\console-error-scanner            ║
-echo  ║     scan.bat https://example.com/sitemap.xml ║
+echo  ║     scan.bat https://example.com             ║
 echo  ║                                              ║
 echo  ║   Verteilen:                                 ║
 echo  ║     Den Ordner zippen und weitergeben.       ║

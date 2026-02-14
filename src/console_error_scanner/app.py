@@ -22,7 +22,7 @@ from . import __version__, __year__
 from .models.history import History, HistoryEntry
 from .models.settings import Settings
 from .models.scan_result import ScanResult, ScanSummary, PageStatus
-from .models.sitemap import SitemapParser, SitemapError
+from .models.sitemap import SitemapParser, SitemapError, discover_sitemap, is_sitemap_url
 from .models.whitelist import Whitelist
 from .services.reporter import Reporter
 from .services.scanner import Scanner
@@ -199,8 +199,30 @@ class ConsoleErrorScannerApp(App):
 
     @work(exclusive=True, group="sitemap")
     async def _load_sitemap(self) -> None:
-        """Laedt die Sitemap und zeigt die URLs an."""
+        """Laedt die Sitemap und zeigt die URLs an.
+
+        Wenn die URL nicht auf .xml endet, wird automatisch versucht
+        die Sitemap via robots.txt und typische Pfade zu finden.
+        """
         self._start_sitemap_loading()
+
+        # Auto-Discovery wenn keine direkte Sitemap-URL
+        if not is_sitemap_url(self.sitemap_url):
+            self._write_log(f"Suche Sitemap fuer: {self.sitemap_url}")
+            try:
+                self.sitemap_url = await discover_sitemap(
+                    self.sitemap_url,
+                    cookies=self.cookies,
+                    log=self._write_log,
+                )
+            except SitemapError as e:
+                self._stop_sitemap_loading()
+                self._write_log(f"[red]Sitemap-Fehler: {e}[/red]")
+                self.app.push_screen(
+                    _SitemapErrorScreen(f"Sitemap-Fehler:\n\n{e}")
+                )
+                return
+
         self._write_log(f"Lade Sitemap: {self.sitemap_url}")
 
         try:

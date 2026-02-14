@@ -1,15 +1,37 @@
-"""Sitemap-Parser - Laedt und parst XML-Sitemaps."""
+"""Sitemap-Parser - Laedt und parst XML-Sitemaps mit Auto-Discovery."""
 
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 
 
 # Standard-Namespace fuer Sitemaps
 SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
+
+# Typische Sitemap-Pfade fuer Auto-Discovery (in Prioritaetsreihenfolge)
+_COMMON_SITEMAP_PATHS = [
+    "/sitemap.xml",
+    "/sitemap_index.xml",
+    "/sitemap/sitemap.xml",
+    "/sitemapindex.xml",
+    "/sitemap/index.xml",
+]
+
+
+def is_sitemap_url(url: str) -> bool:
+    """Prueft ob eine URL direkt auf eine Sitemap zeigt.
+
+    Args:
+        url: Die zu pruefende URL.
+
+    Returns:
+        True wenn die URL auf .xml endet (= direkte Sitemap-URL).
+    """
+    path = urlparse(url).path.lower()
+    return path.endswith(".xml")
 
 
 class SitemapParser:
@@ -128,6 +150,128 @@ class SitemapParser:
                     urls.append(_sanitize_url(entry.text.strip()))
 
         return urls
+
+
+async def discover_sitemap(
+    base_url: str,
+    cookies: list[dict[str, str]] | None = None,
+    log: callable = None,
+) -> str:
+    """Findet die Sitemap-URL fuer eine Domain automatisch.
+
+    Strategie:
+    1. robots.txt laden und nach "Sitemap:"-Eintraegen suchen
+    2. Typische Pfade durchprobieren (/sitemap.xml, /sitemap/sitemap.xml, ...)
+    3. Erste funktionierende URL zurueckgeben
+
+    Args:
+        base_url: Basis-URL der Website (z.B. https://www.example.com).
+        cookies: Optionale Cookies fuer authentifizierte Zugriffe.
+        log: Optionale Log-Funktion fuer Statusmeldungen.
+
+    Returns:
+        Die gefundene Sitemap-URL.
+
+    Raises:
+        SitemapError: Wenn keine Sitemap gefunden wird.
+    """
+    if log is None:
+        log = lambda msg: None
+
+    # Basis-URL normalisieren (Trailing Slash entfernen)
+    parsed = urlparse(base_url)
+    origin = urlunparse((parsed.scheme, parsed.netloc, "", "", "", ""))
+
+    # Cookies aufbereiten
+    jar = httpx.Cookies()
+    for c in (cookies or []):
+        jar.set(c["name"], c["value"])
+
+    async with httpx.AsyncClient(
+        timeout=15.0,
+        follow_redirects=True,
+        verify=False,
+        cookies=jar,
+    ) as client:
+
+        # Phase 1: robots.txt nach Sitemap-Eintraegen durchsuchen
+        robots_url = f"{origin}/robots.txt"
+        log(f"    Suche Sitemap in robots.txt: {robots_url}")
+        try:
+            response = await client.get(robots_url)
+            if response.status_code == 200:
+                sitemap_urls = _parse_robots_sitemaps(response.text)
+                for sitemap_url in sitemap_urls:
+                    log(f"    robots.txt Eintrag gefunden: {sitemap_url}")
+                    if await _is_valid_sitemap(client, sitemap_url):
+                        log(f"    [green]Sitemap gefunden: {sitemap_url}[/green]")
+                        return sitemap_url
+                    log(f"    {sitemap_url} nicht erreichbar, weiter...")
+        except Exception:
+            log("    robots.txt nicht erreichbar")
+
+        # Phase 2: Typische Pfade durchprobieren
+        log("    Probiere typische Sitemap-Pfade...")
+        for path in _COMMON_SITEMAP_PATHS:
+            candidate = f"{origin}{path}"
+            log(f"    Teste: {candidate}")
+            if await _is_valid_sitemap(client, candidate):
+                log(f"    [green]Sitemap gefunden: {candidate}[/green]")
+                return candidate
+
+    raise SitemapError(
+        f"Keine Sitemap gefunden fuer {base_url}\n\n"
+        f"Getestet: robots.txt + {len(_COMMON_SITEMAP_PATHS)} typische Pfade.\n"
+        f"Bitte gib die Sitemap-URL direkt an, z.B.:\n"
+        f"  {origin}/pfad/zur/sitemap.xml"
+    )
+
+
+def _parse_robots_sitemaps(robots_text: str) -> list[str]:
+    """Extrahiert Sitemap-URLs aus robots.txt.
+
+    Args:
+        robots_text: Inhalt der robots.txt.
+
+    Returns:
+        Liste der gefundenen Sitemap-URLs.
+    """
+    urls: list[str] = []
+    for line in robots_text.splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("sitemap:"):
+            url = stripped[len("sitemap:"):].strip()
+            if url:
+                urls.append(url)
+    return urls
+
+
+async def _is_valid_sitemap(client: httpx.AsyncClient, url: str) -> bool:
+    """Prueft ob eine URL eine gueltige Sitemap zurueckliefert.
+
+    Args:
+        client: httpx Client-Instanz.
+        url: Die zu pruefende URL.
+
+    Returns:
+        True wenn die URL HTTP 200 liefert und XML-Inhalt enthaelt.
+    """
+    try:
+        response = await client.head(url)
+        if response.status_code == 200:
+            # HEAD war erfolgreich - kurz pruefen ob XML-Content
+            content_type = response.headers.get("content-type", "")
+            if "xml" in content_type or "text" in content_type:
+                return True
+            # Manche Server liefern keinen korrekten Content-Type bei HEAD,
+            # deshalb GET als Fallback mit wenig Daten
+            response = await client.get(url, headers={"Range": "bytes=0-512"})
+            if response.status_code in (200, 206):
+                text = response.text[:512]
+                return "<?xml" in text or "<urlset" in text or "<sitemapindex" in text
+    except Exception:
+        pass
+    return False
 
 
 def _sanitize_url(url: str) -> str:

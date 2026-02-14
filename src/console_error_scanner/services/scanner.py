@@ -575,18 +575,34 @@ class Scanner:
             pass
 
     async def _launch_browser(self) -> Browser:
-        """Startet den Chromium-Browser.
+        """Startet den Browser (System-Chrome bevorzugt, Chromium als Fallback).
+
+        Versucht zuerst den installierten System-Chrome zu nutzen (channel="chrome").
+        Falls nicht vorhanden, wird auf das gebundelte Playwright-Chromium zurueckgegriffen.
 
         Returns:
             Playwright Browser-Instanz.
         """
+        launch_args = [
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+            "--no-sandbox",
+        ]
+
+        # System-Chrome bevorzugen
+        try:
+            return await self._playwright.chromium.launch(
+                channel="chrome",
+                headless=self.headless,
+                args=launch_args,
+            )
+        except Exception:
+            pass
+
+        # Fallback: gebundeltes Chromium
         return await self._playwright.chromium.launch(
             headless=self.headless,
-            args=[
-                "--disable-gpu",
-                "--disable-dev-shm-usage",
-                "--no-sandbox",
-            ],
+            args=launch_args,
         )
 
     async def _check_network(self) -> bool:

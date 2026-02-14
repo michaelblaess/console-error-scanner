@@ -26,13 +26,14 @@ BANNER = f"""
 
 USAGE_EXAMPLES = """
 Beispiele:
+  console-error-scanner https://example.com
   console-error-scanner https://example.com/sitemap.xml
-  console-error-scanner https://example.com/sitemap.xml --concurrency 12
-  console-error-scanner https://example.com/sitemap.xml --output-html report.html
+  console-error-scanner https://example.com --concurrency 12
+  console-error-scanner https://example.com --output-html report.html
   console-error-scanner https://example.com/sitemap.xml --console-level error
-  console-error-scanner https://example.com/sitemap.xml --filter /produkte
-  console-error-scanner https://test.example.com/sitemap.xml --cookie auth=token123
-  console-error-scanner https://example.com/sitemap.xml --whitelist whitelist.json
+  console-error-scanner https://example.com --filter /produkte
+  console-error-scanner https://test.example.com --cookie auth=token123
+  console-error-scanner https://example.com --whitelist whitelist.json
 
 Tastenkuerzel in der TUI:
   s = Scan starten    r = Reports speichern    t = Top 10 Fehler
@@ -55,8 +56,8 @@ def main() -> None:
         "sitemap_url",
         nargs="?",
         default="",
-        metavar="SITEMAP_URL",
-        help="URL der Sitemap (XML)",
+        metavar="URL",
+        help="URL der Website oder Sitemap (XML). Bei Domain-URLs wird die Sitemap automatisch gesucht.",
     )
     parser.add_argument(
         "--concurrency", "-c",
