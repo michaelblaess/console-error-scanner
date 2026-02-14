@@ -16,3 +16,5 @@ report.html
 console-error-report_*.json
 console-error-report_*.html
 .textual/
+.build-venv/
+history/

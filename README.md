@@ -60,6 +60,12 @@ run.bat https://test.example.com/sitemap.xml --cookie auth=token123
 # Mehrere Cookies setzen
 run.bat https://test.example.com/sitemap.xml --cookie auth=token123 --cookie session=abc
 
+# Bekannte Fehler per Whitelist ignorieren
+run.bat https://www.example.com/sitemap.xml --whitelist whitelist.json
+
+# Cookie-Consent NICHT akzeptieren (Banner wird nur per CSS versteckt)
+run.bat https://www.example.com/sitemap.xml --no-consent
+
 # Reports automatisch speichern (fuer Azure Pipeline)
 run.bat https://www.example.com/sitemap.xml --output-json report.json --output-html report.html
 
@@ -81,6 +87,8 @@ run.bat https://www.example.com/sitemap.xml --no-headless
 | `--console-level` | | warn | error, warn, all |
 | `--user-agent` | | Chrome 131 | Custom User-Agent String |
 | `--cookie` | | | Cookie setzen (NAME=VALUE), mehrfach verwendbar |
+| `--whitelist` | `-w` | | Pfad zur Whitelist-JSON (bekannte Fehler ignorieren) |
+| `--no-consent` | | false | Cookie-Consent NICHT akzeptieren (Banner wird nur versteckt) |
 
 ### Console-Level
 
@@ -90,10 +98,11 @@ run.bat https://www.example.com/sitemap.xml --no-headless
 
 ## Features
 
-- **Consent-Banner Auto-Accept**: Erkennt und akzeptiert automatisch Usercentrics, OneTrust und CookieBot, damit auch Tracking-Scripts geladen und geprueft werden
+- **Consent-Banner Behandlung**: 3-Phasen-Consent (JavaScript-API → Button-Klick Fallback → CSS-Hide) fuer Usercentrics, OneTrust, CookieBot und generische Banner. Per `n`-Taste oder `--no-consent` umschaltbar zwischen Akzeptieren und nur Verstecken
 - **CSP-Violation Erkennung**: Erkennt Content Security Policy Verstoesze via `pageerror` Events
 - **Fehlgeschlagene Requests**: Erkennt abgebrochene/fehlgeschlagene Netzwerk-Requests
 - **Cookie-Authentifizierung**: Zugriff auf geschuetzte Testumgebungen per `--cookie` Parameter
+- **Whitelist**: Bekannte Fehler per Wildcard-Pattern ignorieren (z.B. attachShadow, AppInsights)
 - **Live-Updates**: Ergebnisse erscheinen sofort waehrend des Scans in der Tabelle
 
 ## Tastenkuerzel in der TUI
@@ -103,6 +112,7 @@ run.bat https://www.example.com/sitemap.xml --no-headless
 | `s` | Scan starten |
 | `r` | HTML + JSON Reports speichern |
 | `t` | Top 10 Fehler anzeigen |
+| `n` | Consent-Toggle (AN = akzeptieren, AUS = nur Banner verstecken) |
 | `l` | Log-Bereich ein/ausblenden |
 | `e` | Nur fehlerhafte URLs anzeigen |
 | `c` | Log in Zwischenablage kopieren |
@@ -111,6 +121,38 @@ run.bat https://www.example.com/sitemap.xml --no-headless
 | `+` / `-` | Log-Bereich vergroessern/verkleinern |
 | `i` | Info-Dialog |
 | `q` | Beenden |
+
+## Whitelist
+
+Mit einer Whitelist-Datei koennen bekannte, irrelevante Fehler ignoriert werden. Die Datei ist im JSON-Format:
+
+```json
+{
+  "description": "Known Bugs - diese Fehler werden ignoriert",
+  "patterns": [
+    "*Failed to execute 'attachShadow' on 'Element'*",
+    "*AppInsights nicht gefunden*",
+    "*carouselWrapper is not initialized yet*",
+    "HTTP 404:*tracking.js*",
+    "*https://googleads.g.doubleclick.net*"
+  ]
+}
+```
+
+**Pattern-Syntax** (fnmatch):
+- `*` = beliebig viele Zeichen
+- `?` = genau ein Zeichen
+- Matching ist **case-insensitive**
+- Wird gegen die Fehlermeldung (`PageError.message`) gematcht
+- Betrifft **alle Fehlertypen**: Console Errors, Warnings, CSP Violations, HTTP-Fehler
+
+**Status-Anzeige**:
+- **OK** - Keine Fehler
+- **ERR** - Echte (nicht-whitelisted) Fehler vorhanden
+- **IGN** - Seite hat nur whitelisted Fehler (gelb)
+- Whitelisted Fehler erscheinen in einer eigenen "Ignored"-Spalte und als gedimmte Sektion in der Detail-Ansicht
+
+Eine Beispiel-Whitelist liegt im Repository unter `whitelist.json`.
 
 ## Architektur
 
@@ -122,6 +164,7 @@ src/console_error_scanner/
   models/
     scan_result.py      ScanResult, PageError, Enums
     sitemap.py          Sitemap-Parser (XML -> URLs)
+    whitelist.py        Whitelist (Wildcard-Pattern Matching)
   widgets/
     results_table.py    DataTable mit Filter
     error_detail_view.py  Detail-Ansicht rechts
@@ -133,6 +176,30 @@ src/console_error_scanner/
   services/
     scanner.py          Playwright Scanner (Retry, Recovery)
     reporter.py         HTML + JSON Report-Generator
+```
+
+## Standalone-EXE bauen
+
+Fuer Rechner ohne Python-Installation kann eine Standalone-EXE gebaut werden:
+
+```bash
+# Build ausfuehren (erstellt dist\console-error-scanner\)
+build.bat
+```
+
+Das Build-Script:
+1. Erstellt eine eigene Build-Umgebung (`.build-venv`)
+2. Installiert PyInstaller und alle Abhaengigkeiten
+3. Baut die EXE via PyInstaller
+4. Kopiert den Chromium-Browser in den Ausgabe-Ordner
+5. Legt `whitelist.json`, `README.md` und `scan.bat` bei
+
+**Ergebnis:** `dist\console-error-scanner\` (~250 MB) - den Ordner zippen und weitergeben.
+
+```bash
+# Auf dem Zielrechner (kein Python noetig!):
+scan.bat https://www.example.com/sitemap.xml
+scan.bat https://www.example.com/sitemap.xml --whitelist whitelist.json
 ```
 
 ## Robustheit

@@ -87,6 +87,8 @@ class TopErrorsScreen(ModalScreen):
 
         for result in self._results:
             for error in result.errors:
+                if error.whitelisted:
+                    continue
                 if error.error_type == ErrorType.CONSOLE_ERROR:
                     msg = _normalize_message(error.message)
                     console_counter[msg] += 1
@@ -112,7 +114,7 @@ class TopErrorsScreen(ModalScreen):
             return text
 
         text.append(f"Gesamt: {total_errors} Fehler auf ", style="bold")
-        pages_with_errors = sum(1 for r in self._results if r.has_errors)
+        pages_with_errors = sum(1 for r in self._results if r.has_issues)
         text.append(f"{pages_with_errors} Seiten\n", style="bold")
         text.append("\n")
 
@@ -141,7 +143,7 @@ class TopErrorsScreen(ModalScreen):
         text.append("\n\n")
         text.append("Seiten mit den meisten Fehlern\n", style="bold cyan underline")
         text.append("\n")
-        page_errors = [(r.url, r.total_error_count) for r in self._results if r.has_errors]
+        page_errors = [(r.url, r.total_error_count) for r in self._results if r.has_issues]
         page_errors.sort(key=lambda x: x[1], reverse=True)
 
         if page_errors:

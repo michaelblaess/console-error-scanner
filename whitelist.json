@@ -1,0 +1,18 @@
+{
+  "description": "Known Bugs - diese Fehler werden ignoriert",
+  "patterns": [
+    "*Failed to execute 'attachShadow' on 'Element'*",
+    "*AppInsights nicht gefunden*",
+    "*carouselWrapper is not initialized yet*",
+    "HTTP 404:*tracking.js*",
+    "*https://googleads.g.doubleclick.net*",
+    "*Cannot read properties of undefined (reading 'settings')*",
+    "*https://adservice.google.com*",
+    "*https://ad.doubleclick.net*",
+    "*arrowright*",
+    "*The script resource is behind a redirect*",
+    "*autologon.microsoftazuread-sso.com*",
+    "*winauth/ssoprobe*",
+    "*net::ERR_BLOCKED_BY_ORB*"
+  ]
+}

@@ -62,12 +62,21 @@ class Reporter:
         # Ergebnis-Zeilen aufbauen
         result_rows = []
         for idx, r in enumerate(results, 1):
-            status_class = "ok" if not r.has_errors else "error"
+            if r.has_errors:
+                status_class = "error"
+            elif r.has_issues:
+                status_class = "warning"
+            else:
+                status_class = "ok"
             error_details = ""
+            ignored_details = ""
 
-            if r.errors:
+            active_errors = [e for e in r.errors if not e.whitelisted]
+            ignored_errors = [e for e in r.errors if e.whitelisted]
+
+            if active_errors:
                 detail_items = []
-                for e in r.errors:
+                for e in active_errors:
                     type_label = {
                         "console_error": "Console",
                         "http_404": "HTTP 404",
@@ -89,6 +98,29 @@ class Reporter:
 
                 error_details = f"<ul class='error-list'>{''.join(detail_items)}</ul>"
 
+            if ignored_errors:
+                ignored_items = []
+                for e in ignored_errors:
+                    type_label = {
+                        "console_error": "Console",
+                        "console_warning": "Warning",
+                        "http_404": "HTTP 404",
+                        "http_4xx": "HTTP 4xx",
+                        "http_5xx": "HTTP 5xx",
+                    }.get(e.error_type.value, e.error_type.value)
+
+                    ignored_items.append(
+                        f"<li><span class='error-type ignored'>{type_label}</span> "
+                        f"{_html_escape(e.message)}</li>"
+                    )
+
+                ignored_details = (
+                    f"<div class='ignored-section'>"
+                    f"<p class='ignored-header'>Whitelist-Treffer ({len(ignored_errors)})</p>"
+                    f"<ul class='error-list ignored-list'>{''.join(ignored_items)}</ul>"
+                    f"</div>"
+                )
+
             result_rows.append(
                 f"<tr class='{status_class}'>"
                 f"<td>{idx}</td>"
@@ -100,12 +132,13 @@ class Reporter:
                 f"<td>{r.http_404_count}</td>"
                 f"<td>{r.http_4xx_count}</td>"
                 f"<td>{r.http_5xx_count}</td>"
+                f"<td class='ignored-cell'>{r.ignored_count}</td>"
                 f"</tr>"
             )
 
-            if error_details:
+            if error_details or ignored_details:
                 result_rows.append(
-                    f"<tr class='detail-row'><td colspan='9'>{error_details}</td></tr>"
+                    f"<tr class='detail-row'><td colspan='10'>{error_details}{ignored_details}</td></tr>"
                 )
 
         html = f"""<!DOCTYPE html>
@@ -132,6 +165,7 @@ class Reporter:
         th {{ background: #21262d; color: #8b949e; text-align: left; padding: 10px 12px; font-size: 0.8rem; text-transform: uppercase; }}
         td {{ padding: 8px 12px; border-top: 1px solid #21262d; font-size: 0.9rem; }}
         tr.ok td {{ color: #c9d1d9; }}
+        tr.warning td {{ color: #d29922; }}
         tr.error td {{ color: #f85149; }}
         tr.detail-row td {{ background: #1c2128; padding: 5px 12px 10px 40px; }}
 
@@ -147,6 +181,14 @@ class Reporter:
         .error-type.http_4xx {{ background: #d2992226; color: #d29922; }}
         .error-type.http_5xx {{ background: #f8514926; color: #f85149; }}
         .source {{ color: #8b949e; font-size: 0.8rem; }}
+
+        .ignored-card {{ opacity: 0.6; }}
+        .summary-card .value.ignored {{ color: #8b949e; }}
+        .ignored-cell {{ color: #8b949e; }}
+        .ignored-section {{ margin-top: 10px; padding-top: 8px; border-top: 1px solid #21262d; }}
+        .ignored-header {{ color: #8b949e; font-size: 0.8rem; font-weight: bold; margin-bottom: 4px; }}
+        .ignored-list li {{ opacity: 0.5; }}
+        .error-type.ignored {{ background: #8b949e26; color: #8b949e; }}
 
         .footer {{ margin-top: 20px; color: #484f58; font-size: 0.8rem; text-align: center; }}
     </style>
@@ -188,6 +230,10 @@ class Reporter:
             <div class="label">Timeouts</div>
             <div class="value {"warning" if summary.total_timeouts > 0 else "ok"}">{summary.total_timeouts}</div>
         </div>
+        <div class="summary-card ignored-card">
+            <div class="label">Ignored</div>
+            <div class="value ignored">{summary.total_ignored}</div>
+        </div>
         <div class="summary-card">
             <div class="label">Dauer</div>
             <div class="value">{duration_s:.1f}s</div>
@@ -206,6 +252,7 @@ class Reporter:
                 <th>404</th>
                 <th>4xx</th>
                 <th>5xx</th>
+                <th>Ignored</th>
             </tr>
         </thead>
         <tbody>

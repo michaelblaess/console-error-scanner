@@ -3,7 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+
+# Frozen-EXE Erkennung (PyInstaller):
+# PLAYWRIGHT_BROWSERS_PATH muss gesetzt werden BEVOR playwright importiert wird,
+# damit das gebundelte Chromium im "browsers"-Unterordner gefunden wird.
+if getattr(sys, "frozen", False):
+    _exe_dir = os.path.dirname(sys.executable)
+    _browsers_dir = os.path.join(_exe_dir, "browsers")
+    if os.path.isdir(_browsers_dir):
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = _browsers_dir
 
 from . import __version__
 from .app import ConsoleErrorScannerApp
@@ -22,11 +32,13 @@ Beispiele:
   console-error-scanner https://example.com/sitemap.xml --console-level error
   console-error-scanner https://example.com/sitemap.xml --filter /produkte
   console-error-scanner https://test.example.com/sitemap.xml --cookie auth=token123
+  console-error-scanner https://example.com/sitemap.xml --whitelist whitelist.json
 
 Tastenkuerzel in der TUI:
   s = Scan starten    r = Reports speichern    t = Top 10 Fehler
-  l = Log ein/aus     e = Nur Fehler           / = Filter
-  + / - = Log-Hoehe   i = Info                 q = Beenden
+  h = History         l = Log ein/aus          e = Nur Fehler
+  n = Consent-Toggle  / = Filter               + / - = Log-Hoehe
+  i = Info            q = Beenden
 """
 
 
@@ -104,12 +116,20 @@ def main() -> None:
         metavar="NAME=VALUE",
         help="Cookie setzen (z.B. --cookie auth=token). Mehrfach verwendbar.",
     )
+    parser.add_argument(
+        "--whitelist", "-w",
+        default="",
+        metavar="PATH",
+        help="Pfad zur Whitelist-JSON (bekannte Fehler ignorieren)",
+    )
+    parser.add_argument(
+        "--no-consent",
+        action="store_true",
+        default=None,
+        help="Cookie-Consent NICHT akzeptieren (Banner wird nur versteckt)",
+    )
 
     args = parser.parse_args()
-
-    if not args.sitemap_url:
-        parser.print_help()
-        sys.exit(1)
 
     # Cookies parsen: "NAME=VALUE" -> {"name": "NAME", "value": "VALUE"}
     cookies = []
@@ -131,6 +151,8 @@ def main() -> None:
         console_level=args.console_level,
         user_agent=args.user_agent,
         cookies=cookies,
+        whitelist_path=args.whitelist,
+        accept_consent=not args.no_consent if args.no_consent is not None else None,
     )
     app.run()
 

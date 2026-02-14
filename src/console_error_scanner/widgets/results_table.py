@@ -57,6 +57,9 @@ class ResultsTable(Vertical):
     # Spinner-Frames fuer SCANNING-Status
     SPINNER_FRAMES = [">  ", ">> ", ">>>", " >>", "  >", "   "]
 
+    # Tasten bei denen Auto-Scroll deaktiviert wird (manuelle Navigation)
+    _NAV_KEYS = {"up", "down", "pageup", "pagedown", "home", "end"}
+
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self._results: list[ScanResult] = []
@@ -64,6 +67,8 @@ class ResultsTable(Vertical):
         self._show_only_errors: bool = False
         self._spinner_frame: int = 0
         self._spinner_timer = None
+        self._auto_scroll: bool = True
+        self._auto_scroll_row: int = -1
 
     def compose(self) -> ComposeResult:
         """Erstellt die Kind-Widgets."""
@@ -74,7 +79,7 @@ class ResultsTable(Vertical):
     def on_mount(self) -> None:
         """Initialisiert die Tabellenspalten und startet den Spinner-Timer."""
         table = self.query_one("#results-data", DataTable)
-        table.add_columns("#", "Status", "URL", "HTTP", "Zeit", "Errors", "Warns", "404", "4xx", "5xx")
+        table.add_columns("#", "Status", "URL", "HTTP", "Zeit", "Errors", "Warns", "404", "4xx", "5xx", "Ignored")
         self._spinner_timer = self.set_interval(0.3, self._tick_spinner)
 
     def _tick_spinner(self) -> None:
@@ -88,14 +93,22 @@ class ResultsTable(Vertical):
     def load_results(self, results: list[ScanResult]) -> None:
         """Laedt Ergebnisse in die Tabelle.
 
+        Setzt Auto-Scroll zurueck, damit beim naechsten Scan
+        automatisch zur aktuellen Zeile gescrollt wird.
+
         Args:
             results: Liste der ScanResults.
         """
         self._results = results
+        self._auto_scroll = True
+        self._auto_scroll_row = -1
         self._apply_filter()
 
     def update_result(self, result: ScanResult) -> None:
         """Aktualisiert ein einzelnes Ergebnis in der Tabelle.
+
+        Bei aktivem Auto-Scroll wird der Cursor zur aktualisierten
+        Zeile bewegt, damit der User den Fortschritt verfolgen kann.
 
         Args:
             result: Das aktualisierte ScanResult.
@@ -103,13 +116,30 @@ class ResultsTable(Vertical):
         # Ergebnis in der Liste aktualisieren (wird per Referenz geteilt)
         self._apply_filter()
 
+        if self._auto_scroll:
+            self._scroll_to_result(result)
+
+    def _scroll_to_result(self, result: ScanResult) -> None:
+        """Merkt sich die Ziel-Zeile fuer Auto-Scroll.
+
+        Die eigentliche Cursor-Bewegung passiert in _refresh_table(),
+        damit auch Spinner-Updates die Position beibehalten.
+
+        Args:
+            result: Das ScanResult zu dem gescrollt werden soll.
+        """
+        try:
+            self._auto_scroll_row = self._filtered.index(result)
+        except ValueError:
+            pass
+
     def _apply_filter(self) -> None:
         """Wendet den aktuellen Filter an und aktualisiert die Tabelle."""
         search = self.filter_text.lower()
 
         self._filtered = []
         for r in self._results:
-            if self._show_only_errors and not r.has_errors:
+            if self._show_only_errors and not r.has_issues:
                 continue
             if search and search not in r.url.lower():
                 continue
@@ -134,12 +164,14 @@ class ResultsTable(Vertical):
                 http_404_text = _colored_count(result.http_404_count, "bold yellow")
                 http_4xx_text = _colored_count(result.http_4xx_count, "bold yellow")
                 http_5xx_text = _colored_count(result.http_5xx_count, "bold red")
+                ignored_text = Text(str(result.ignored_count), style="dim") if result.ignored_count > 0 else Text("0", style="dim")
             else:
                 errors_text = Text("-", style="dim")
                 warns_text = Text("-", style="dim")
                 http_404_text = Text("-", style="dim")
                 http_4xx_text = Text("-", style="dim")
                 http_5xx_text = Text("-", style="dim")
+                ignored_text = Text("-", style="dim")
 
             http_code_str = str(result.http_status_code) if result.http_status_code > 0 else "-"
             time_str = f"{result.load_time_ms / 1000:.1f}s" if result.load_time_ms > 0 else "-"
@@ -155,8 +187,13 @@ class ResultsTable(Vertical):
                 http_404_text,
                 http_4xx_text,
                 http_5xx_text,
+                ignored_text,
                 key=str(idx),
             )
+
+        # Auto-Scroll: Cursor zur gemerkten Zeile bewegen
+        if self._auto_scroll and 0 <= self._auto_scroll_row < len(self._filtered):
+            table.move_cursor(row=self._auto_scroll_row)
 
         count_label = self.query_one("#results-count", Static)
         total = len(self._results)
@@ -179,14 +216,28 @@ class ResultsTable(Vertical):
             frame = self.SPINNER_FRAMES[self._spinner_frame % len(self.SPINNER_FRAMES)]
             return Text(frame, style="bold cyan")
 
+        # Nur whitelisted Errors → IGN (gelb)
+        if result.has_only_ignored_errors:
+            return Text("IGN", style="bold yellow")
+
         styles = {
             PageStatus.PENDING: ("...", "dim"),
             PageStatus.OK: ("OK", "bold green"),
+            PageStatus.WARNING: ("WARN", "bold yellow"),
             PageStatus.ERROR: ("ERR", "bold red"),
             PageStatus.TIMEOUT: ("T/O", "bold yellow"),
         }
         icon, style = styles.get(result.status, ("?", ""))
         return Text(icon, style=style)
+
+    def on_key(self, event) -> None:
+        """Deaktiviert Auto-Scroll bei manueller Navigation.
+
+        Args:
+            event: Das Key-Event.
+        """
+        if event.key in self._NAV_KEYS:
+            self._auto_scroll = False
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Reagiert auf Aenderungen im Filter-Input."""
