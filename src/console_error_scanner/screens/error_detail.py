@@ -80,21 +80,27 @@ class ErrorDetailScreen(ModalScreen):
         text.append(f"HTTP Status: {result.http_status_code}\n")
         text.append(f"Ladezeit: {result.load_time_ms}ms\n")
         text.append(f"Retries: {result.retry_count}\n")
-        text.append(f"Fehler gesamt: {result.total_error_count}\n\n")
+        ignored_info = f", {result.ignored_count} ignored" if result.ignored_count > 0 else ""
+        text.append(f"Fehler gesamt: {result.total_error_count}{ignored_info}\n\n")
 
-        if not result.errors:
+        active_errors = [e for e in result.errors if not e.whitelisted]
+        ignored_errors = [e for e in result.errors if e.whitelisted]
+
+        if not active_errors and not ignored_errors:
             text.append("Keine Fehler.", style="green")
             return text
 
-        for error in result.errors:
+        for error in active_errors:
             type_style = {
                 ErrorType.CONSOLE_ERROR: "bold red",
+                ErrorType.CONSOLE_WARNING: "bold yellow",
                 ErrorType.HTTP_404: "bold yellow",
                 ErrorType.HTTP_4XX: "bold yellow",
                 ErrorType.HTTP_5XX: "bold red",
             }.get(error.error_type, "")
             type_label = {
                 ErrorType.CONSOLE_ERROR: "CONSOLE",
+                ErrorType.CONSOLE_WARNING: "WARNING",
                 ErrorType.HTTP_404: "HTTP 404",
                 ErrorType.HTTP_4XX: "HTTP 4xx",
                 ErrorType.HTTP_5XX: "HTTP 5xx",
@@ -108,6 +114,24 @@ class ErrorDetailScreen(ModalScreen):
                     source += f":{error.line_number}"
                 text.append(f"  Quelle: {source}\n", style="dim")
             text.append("\n")
+
+        # Whitelist-Treffer (gedimmt)
+        if ignored_errors:
+            text.append(f"Whitelist-Treffer ({len(ignored_errors)})\n", style="dim underline")
+            text.append("\n")
+
+            for error in ignored_errors:
+                type_label = {
+                    ErrorType.CONSOLE_ERROR: "CONSOLE",
+                    ErrorType.CONSOLE_WARNING: "WARNING",
+                    ErrorType.HTTP_404: "HTTP 404",
+                    ErrorType.HTTP_4XX: "HTTP 4xx",
+                    ErrorType.HTTP_5XX: "HTTP 5xx",
+                }.get(error.error_type, "?")
+
+                text.append(f"[{type_label}] ", style="dim")
+                text.append(f"{error.message}\n", style="dim")
+                text.append("\n")
 
         return text
 

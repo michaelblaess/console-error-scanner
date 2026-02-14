@@ -22,6 +22,7 @@ class PageStatus(Enum):
     PENDING = "pending"
     SCANNING = "scanning"
     OK = "ok"
+    WARNING = "warning"
     ERROR = "error"
     TIMEOUT = "timeout"
 
@@ -34,6 +35,7 @@ class PageError:
     message: str
     source: str = ""
     line_number: int = 0
+    whitelisted: bool = False
 
     def to_dict(self) -> dict:
         """Konvertiert den Fehler in ein Dictionary."""
@@ -42,6 +44,7 @@ class PageError:
             "message": self.message,
             "source": self.source,
             "line_number": self.line_number,
+            "whitelisted": self.whitelisted,
         }
 
 
@@ -58,41 +61,65 @@ class ScanResult:
 
     @property
     def console_error_count(self) -> int:
-        """Anzahl der Console-Errors."""
-        return sum(1 for e in self.errors if e.error_type == ErrorType.CONSOLE_ERROR)
+        """Anzahl der Console-Errors (ohne whitelisted)."""
+        return sum(1 for e in self.errors if e.error_type == ErrorType.CONSOLE_ERROR and not e.whitelisted)
 
     @property
     def console_warning_count(self) -> int:
-        """Anzahl der Console-Warnings."""
-        return sum(1 for e in self.errors if e.error_type == ErrorType.CONSOLE_WARNING)
+        """Anzahl der Console-Warnings (ohne whitelisted)."""
+        return sum(1 for e in self.errors if e.error_type == ErrorType.CONSOLE_WARNING and not e.whitelisted)
 
     @property
     def http_404_count(self) -> int:
-        """Anzahl der HTTP 404 Fehler."""
-        return sum(1 for e in self.errors if e.error_type == ErrorType.HTTP_404)
+        """Anzahl der HTTP 404 Fehler (ohne whitelisted)."""
+        return sum(1 for e in self.errors if e.error_type == ErrorType.HTTP_404 and not e.whitelisted)
 
     @property
     def http_4xx_count(self) -> int:
-        """Anzahl der HTTP 4xx Fehler (ohne 404)."""
-        return sum(1 for e in self.errors if e.error_type == ErrorType.HTTP_4XX)
+        """Anzahl der HTTP 4xx Fehler ohne 404 (ohne whitelisted)."""
+        return sum(1 for e in self.errors if e.error_type == ErrorType.HTTP_4XX and not e.whitelisted)
 
     @property
     def http_5xx_count(self) -> int:
-        """Anzahl der HTTP 5xx Fehler."""
-        return sum(1 for e in self.errors if e.error_type == ErrorType.HTTP_5XX)
+        """Anzahl der HTTP 5xx Fehler (ohne whitelisted)."""
+        return sum(1 for e in self.errors if e.error_type == ErrorType.HTTP_5XX and not e.whitelisted)
+
+    # Fehlertypen die als "echter Fehler" (ERR) zaehlen
+    _ERROR_TYPES = {ErrorType.CONSOLE_ERROR, ErrorType.HTTP_404, ErrorType.HTTP_4XX, ErrorType.HTTP_5XX}
 
     @property
     def has_errors(self) -> bool:
-        """Hat die Seite Fehler?"""
-        return len(self.errors) > 0
+        """Hat die Seite nicht-whitelisted echte Fehler (ohne Warnings)?"""
+        return any(
+            e.error_type in self._ERROR_TYPES and not e.whitelisted
+            for e in self.errors
+        )
+
+    @property
+    def has_issues(self) -> bool:
+        """Hat die Seite irgendwelche nicht-whitelisted Eintraege (inkl. Warnings)?"""
+        return any(not e.whitelisted for e in self.errors)
+
+    @property
+    def ignored_count(self) -> int:
+        """Anzahl der per Whitelist ignorierten Fehler."""
+        return sum(1 for e in self.errors if e.whitelisted)
+
+    @property
+    def has_only_ignored_errors(self) -> bool:
+        """Hat die Seite nur whitelisted Fehler (keine echten Issues)?"""
+        return len(self.errors) > 0 and not self.has_issues
 
     @property
     def status_icon(self) -> str:
         """Icon fuer den aktuellen Status."""
+        if self.has_only_ignored_errors:
+            return "IGN"
         icons = {
             PageStatus.PENDING: "...",
             PageStatus.SCANNING: ">>>",
             PageStatus.OK: "OK",
+            PageStatus.WARNING: "WARN",
             PageStatus.ERROR: "ERR",
             PageStatus.TIMEOUT: "T/O",
         }
@@ -100,11 +127,13 @@ class ScanResult:
 
     @property
     def total_error_count(self) -> int:
-        """Gesamtanzahl aller Fehler."""
-        return len(self.errors)
+        """Gesamtanzahl aller nicht-whitelisted Fehler."""
+        return sum(1 for e in self.errors if not e.whitelisted)
 
     def to_dict(self) -> dict:
         """Konvertiert das Ergebnis in ein Dictionary."""
+        active_errors = [e for e in self.errors if not e.whitelisted]
+        ignored_errors = [e for e in self.errors if e.whitelisted]
         return {
             "url": self.url,
             "status": self.status.value,
@@ -116,8 +145,10 @@ class ScanResult:
             "http_404_errors": self.http_404_count,
             "http_4xx_errors": self.http_4xx_count,
             "http_5xx_errors": self.http_5xx_count,
+            "ignored_count": self.ignored_count,
             "retry_count": self.retry_count,
-            "errors": [e.to_dict() for e in self.errors],
+            "errors": [e.to_dict() for e in active_errors],
+            "ignored_errors": [e.to_dict() for e in ignored_errors],
         }
 
 
@@ -135,6 +166,7 @@ class ScanSummary:
     total_http_4xx: int = 0
     total_http_5xx: int = 0
     total_timeouts: int = 0
+    total_ignored: int = 0
     scan_duration_ms: int = 0
 
     @staticmethod
@@ -145,7 +177,7 @@ class ScanSummary:
         summary.scan_duration_ms = duration_ms
 
         for result in results:
-            if result.status in (PageStatus.OK, PageStatus.ERROR):
+            if result.status in (PageStatus.OK, PageStatus.WARNING, PageStatus.ERROR):
                 summary.scanned_urls += 1
             if result.has_errors:
                 summary.urls_with_errors += 1
@@ -156,6 +188,7 @@ class ScanSummary:
             summary.total_http_404 += result.http_404_count
             summary.total_http_4xx += result.http_4xx_count
             summary.total_http_5xx += result.http_5xx_count
+            summary.total_ignored += result.ignored_count
 
         return summary
 
@@ -172,5 +205,6 @@ class ScanSummary:
             "total_http_4xx": self.total_http_4xx,
             "total_http_5xx": self.total_http_5xx,
             "total_timeouts": self.total_timeouts,
+            "total_ignored": self.total_ignored,
             "scan_duration_ms": self.scan_duration_ms,
         }

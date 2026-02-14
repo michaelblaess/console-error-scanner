@@ -2,20 +2,28 @@
 
 from __future__ import annotations
 
+import asyncio
+import dataclasses
+import re
 import time
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
+from textual.timer import Timer
 from textual.widgets import Footer, Header, RichLog
 
 from . import __version__, __year__
+from .models.history import History, HistoryEntry
+from .models.settings import Settings
 from .models.scan_result import ScanResult, ScanSummary, PageStatus
 from .models.sitemap import SitemapParser, SitemapError
+from .models.whitelist import Whitelist
 from .services.reporter import Reporter
 from .services.scanner import Scanner
 from .widgets.error_detail_view import ErrorDetailView
@@ -39,14 +47,17 @@ class ConsoleErrorScannerApp(App):
     BINDINGS = [
         Binding("q", "quit", "Beenden"),
         Binding("s", "start_scan", "Scan"),
+        Binding("h", "show_history", "History"),
         Binding("r", "save_reports", "Report"),
         Binding("t", "show_top_errors", "Top 10"),
+        Binding("w", "toggle_whitelist", "Whitelist AN"),
         Binding("l", "toggle_log", "Log"),
         Binding("e", "toggle_errors", "Nur Fehler"),
         Binding("plus", "log_bigger", "Log +", key_display="+"),
         Binding("minus", "log_smaller", "Log -", key_display="-"),
         Binding("slash", "focus_filter", "Filter", key_display="/"),
         Binding("escape", "unfocus_filter", "Filter leeren", show=False),
+        Binding("n", "toggle_consent", "Consent AN"),
         Binding("c", "copy_log", "Log kopieren"),
         Binding("i", "show_about", "Info"),
     ]
@@ -63,8 +74,14 @@ class ConsoleErrorScannerApp(App):
         console_level: str = "warn",
         user_agent: str = "",
         cookies: list[dict[str, str]] | None = None,
+        whitelist_path: str = "",
+        accept_consent: bool | None = None,
     ) -> None:
         super().__init__()
+
+        # Persistierte Einstellungen laden
+        self._settings = Settings.load()
+
         self.sitemap_url = sitemap_url
         self.concurrency = concurrency
         self.timeout = timeout
@@ -75,9 +92,22 @@ class ConsoleErrorScannerApp(App):
         self.console_level = console_level
         self.user_agent = user_agent
         self.cookies = cookies or []
+        self.whitelist_path = whitelist_path
+
+        # Consent: CLI-Parameter hat Vorrang, sonst aus Settings
+        self.accept_consent = accept_consent if accept_consent is not None else self._settings.accept_consent
+
+        # Theme aus Settings uebernehmen
+        self.theme = self._settings.theme
+
         self._urls: list[str] = []
         self._results: list[ScanResult] = []
         self._scanner: Scanner | None = None
+        self._whitelist: Whitelist | None = None
+        self._whitelist_active: bool = False
+        self._sitemap_loading: bool = False
+        self._sitemap_timer: Timer | None = None
+        self._sitemap_dots: int = 0
         self._scan_running: bool = False
         self._scan_start_time: float = 0
         self._log_lines: list[str] = []
@@ -101,7 +131,37 @@ class ConsoleErrorScannerApp(App):
         """Initialisierung nach dem Starten."""
         # Versionsinfo ins Log schreiben
         self._write_log(f"[bold]Console Error Scanner v{__version__}[/bold]")
-        self._write_log(f"Concurrency: {self.concurrency} | Timeout: {self.timeout}s | Console-Level: {self.console_level}")
+        consent_info = "Consent: AN" if self.accept_consent else "Consent: AUS"
+        self._write_log(f"Concurrency: {self.concurrency} | Timeout: {self.timeout}s | Console-Level: {self.console_level} | {consent_info}")
+
+        # Consent-Binding-Label aktualisieren falls --no-consent
+        if not self.accept_consent:
+            bindings_list = self._bindings.key_to_bindings.get("n", [])
+            for i, binding in enumerate(bindings_list):
+                if binding.action == "toggle_consent":
+                    self._bindings.key_to_bindings["n"][i] = dataclasses.replace(
+                        binding, description="Consent AUS"
+                    )
+                    break
+            self.refresh_bindings()
+
+        # Whitelist laden (wenn angegeben oder whitelist.json im CWD vorhanden)
+        if not self.whitelist_path:
+            cwd_whitelist = Path("whitelist.json")
+            if cwd_whitelist.is_file():
+                self.whitelist_path = str(cwd_whitelist)
+
+        if self.whitelist_path:
+            try:
+                self._whitelist = Whitelist.load(self.whitelist_path)
+                self._whitelist_active = True
+                self._write_log(f"[green]Whitelist geladen: {len(self._whitelist)} Patterns aus {self.whitelist_path}[/green]")
+                for pattern in self._whitelist.patterns:
+                    self._write_log(f"[dim]  - {pattern}[/dim]")
+            except Exception as e:
+                self._write_log(f"[red]Whitelist-Fehler: {e}[/red]")
+                self._whitelist = None
+                self._whitelist_active = False
 
         # Focus auf die Tabelle setzen damit Footer-Bindings sofort sichtbar
         try:
@@ -114,26 +174,54 @@ class ConsoleErrorScannerApp(App):
         if self.sitemap_url:
             self._load_sitemap()
 
-    @work(exclusive=True)
+    def _start_sitemap_loading(self) -> None:
+        """Startet die Lade-Animation fuer die Sitemap."""
+        self._sitemap_loading = True
+        self._sitemap_dots = 0
+        self.sub_title = "Lade Sitemap..."
+        self.refresh_bindings()
+        self._sitemap_timer = self.set_interval(0.5, self._tick_sitemap_loading)
+
+    def _tick_sitemap_loading(self) -> None:
+        """Timer-Callback: Schreibt Fortschrittspunkte ins Log."""
+        self._sitemap_dots += 1
+        dots = "." * self._sitemap_dots
+        self.sub_title = f"Lade Sitemap{dots}"
+
+    def _stop_sitemap_loading(self) -> None:
+        """Stoppt die Lade-Animation."""
+        if self._sitemap_timer is not None:
+            self._sitemap_timer.stop()
+            self._sitemap_timer = None
+        self._sitemap_loading = False
+        self._sitemap_dots = 0
+        self.refresh_bindings()
+
+    @work(exclusive=True, group="sitemap")
     async def _load_sitemap(self) -> None:
         """Laedt die Sitemap und zeigt die URLs an."""
+        self._start_sitemap_loading()
         self._write_log(f"Lade Sitemap: {self.sitemap_url}")
 
         try:
             parser = SitemapParser(self.sitemap_url, url_filter=self.url_filter, cookies=self.cookies)
             self._urls = await parser.parse()
         except SitemapError as e:
+            self._stop_sitemap_loading()
             self._write_log(f"[red]Sitemap-Fehler: {e}[/red]")
             self.app.push_screen(
                 _SitemapErrorScreen(f"Sitemap-Fehler:\n\n{e}")
             )
             return
         except Exception as e:
+            self._stop_sitemap_loading()
             self._write_log(f"[red]Unerwarteter Fehler: {e}[/red]")
             self.app.push_screen(
                 _SitemapErrorScreen(f"Unerwarteter Fehler:\n\n{e}")
             )
             return
+
+        self._stop_sitemap_loading()
 
         if not self._urls:
             self._write_log("[yellow]Keine URLs in der Sitemap gefunden.[/yellow]")
@@ -158,7 +246,7 @@ class ConsoleErrorScannerApp(App):
         if self.output_json or self.output_html:
             self.action_start_scan()
 
-    @work(exclusive=True)
+    @work(exclusive=True, group="scan")
     async def action_start_scan(self) -> None:
         """Startet den Scan aller URLs."""
         if self._scan_running:
@@ -189,6 +277,24 @@ class ConsoleErrorScannerApp(App):
         table = self.query_one("#results-table", ResultsTable)
         table.load_results(self._results)
 
+        # History-Eintrag erstellen und speichern
+        try:
+            history_entry = HistoryEntry(
+                sitemap_url=self.sitemap_url,
+                concurrency=self.concurrency,
+                timeout=self.timeout,
+                console_level=self.console_level,
+                url_filter=self.url_filter,
+                user_agent=self.user_agent,
+                cookies=list(self.cookies),
+                whitelist_path=self.whitelist_path,
+                accept_consent=self.accept_consent,
+            )
+            History.add(history_entry)
+            self._write_log("[dim]History aktualisiert[/dim]")
+        except Exception:
+            pass
+
         self._scanner = Scanner(
             concurrency=self.concurrency,
             timeout=self.timeout,
@@ -196,6 +302,7 @@ class ConsoleErrorScannerApp(App):
             console_level=self.console_level,
             user_agent=self.user_agent,
             cookies=self.cookies,
+            accept_consent=self.accept_consent,
         )
 
         # Async Worker laeuft im Textual-Event-Loop,
@@ -231,14 +338,18 @@ class ConsoleErrorScannerApp(App):
         duration_ms = int((time.monotonic() - self._scan_start_time) * 1000)
         summary_data = ScanSummary.from_results(self.sitemap_url, self._results, duration_ms)
 
-        self._write_log(f"\n[bold green]Scan abgeschlossen in {duration_ms / 1000:.1f}s[/bold green]")
+        self._write_log(f"\n[bold green]Scan abgeschlossen in {_format_duration(duration_ms)}[/bold green]")
+        ignored_info = f" | Ignored: {summary_data.total_ignored}" if summary_data.total_ignored > 0 else ""
         self._write_log(
             f"Ergebnis: {summary_data.urls_with_errors} Seiten mit Fehlern | "
             f"Console: {summary_data.total_console_errors} | "
             f"404: {summary_data.total_http_404} | "
             f"4xx: {summary_data.total_http_4xx} | "
             f"5xx: {summary_data.total_http_5xx}"
+            f"{ignored_info}"
         )
+        if summary_data.total_ignored > 0:
+            self._write_log(f"[dim]{summary_data.total_ignored} Fehler per Whitelist unterdrueckt[/dim]")
 
         # Tabelle final aktualisieren
         table = self.query_one("#results-table", ResultsTable)
@@ -260,6 +371,10 @@ class ConsoleErrorScannerApp(App):
         Args:
             result: Das aktualisierte ScanResult (gleiches Objekt wie in self._results).
         """
+        # Whitelist anwenden bevor UI aktualisiert wird
+        if self._whitelist and self._whitelist_active:
+            self._whitelist.apply(result)
+
         table = self.query_one("#results-table", ResultsTable)
         table.update_result(result)
 
@@ -310,14 +425,16 @@ class ConsoleErrorScannerApp(App):
         summary = ScanSummary.from_results(self.sitemap_url, self._results, duration_ms)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        site_name = _sanitize_filename(urlparse(self.sitemap_url).hostname or "unknown")
+        base_name = f"console-error-report_{site_name}_{timestamp}"
 
         # JSON
-        json_path = f"console-error-report_{timestamp}.json"
+        json_path = f"{base_name}.json"
         saved_json = Reporter.save_json(self._results, summary, json_path)
         self._write_log(f"[green]JSON-Report: {saved_json}[/green]")
 
         # HTML
-        html_path = f"console-error-report_{timestamp}.html"
+        html_path = f"{base_name}.html"
         saved_html = Reporter.save_html(self._results, summary, html_path)
         self._write_log(f"[green]HTML-Report: {saved_html}[/green]")
 
@@ -403,6 +520,203 @@ class ConsoleErrorScannerApp(App):
         from .screens.about import AboutScreen
         self.push_screen(AboutScreen())
 
+    def action_show_history(self) -> None:
+        """Zeigt die Scan-History und laedt bei Auswahl die Parameter."""
+        from .screens.history import HistoryScreen
+        self.push_screen(HistoryScreen(), callback=self._on_history_selected)
+
+    def _on_history_selected(self, entry: HistoryEntry | None) -> None:
+        """Verarbeitet die Auswahl eines History-Eintrags.
+
+        Uebernimmt alle Parameter des Eintrags und laedt die Sitemap.
+        Der Scan wird NICHT automatisch gestartet (User startet mit "s").
+
+        Args:
+            entry: Der ausgewaehlte HistoryEntry oder None.
+        """
+        if entry is None:
+            return
+
+        # Parameter uebernehmen
+        self.sitemap_url = entry.sitemap_url
+        self.concurrency = entry.concurrency
+        self.timeout = entry.timeout
+        self.console_level = entry.console_level
+        self.url_filter = entry.url_filter
+        self.user_agent = entry.user_agent
+        self.cookies = list(entry.cookies)
+        self.accept_consent = entry.accept_consent
+
+        # Consent-Binding-Label aktualisieren
+        consent_label = "Consent AN" if self.accept_consent else "Consent AUS"
+        bindings_list = self._bindings.key_to_bindings.get("n", [])
+        for i, binding in enumerate(bindings_list):
+            if binding.action == "toggle_consent":
+                self._bindings.key_to_bindings["n"][i] = dataclasses.replace(
+                    binding, description=consent_label
+                )
+                break
+
+        # Whitelist neu laden falls sich der Pfad geaendert hat
+        old_whitelist_path = self.whitelist_path
+        self.whitelist_path = entry.whitelist_path
+
+        if self.whitelist_path and self.whitelist_path != old_whitelist_path:
+            try:
+                self._whitelist = Whitelist.load(self.whitelist_path)
+                self._whitelist_active = True
+                self._write_log(f"[green]Whitelist geladen: {len(self._whitelist)} Patterns aus {self.whitelist_path}[/green]")
+            except Exception as e:
+                self._write_log(f"[red]Whitelist-Fehler: {e}[/red]")
+                self._whitelist = None
+                self._whitelist_active = False
+        elif not self.whitelist_path:
+            self._whitelist = None
+            self._whitelist_active = False
+
+        self._write_log(f"[bold]History: Parameter uebernommen[/bold]")
+        self._write_log(f"Sitemap: {self.sitemap_url}")
+        consent_info = "Consent: AN" if self.accept_consent else "Consent: AUS"
+        self._write_log(f"Concurrency: {self.concurrency} | Timeout: {self.timeout}s | Console-Level: {self.console_level} | {consent_info}")
+        if self.cookies:
+            cookie_info = ", ".join(c.get("name", "?") for c in self.cookies)
+            self._write_log(f"Cookies: {cookie_info}")
+        if self.url_filter:
+            self._write_log(f"Filter: {self.url_filter}")
+
+        self.refresh_bindings()
+
+        # Sitemap laden (Scan startet User manuell mit "s")
+        self._load_sitemap()
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        """Steuert Sichtbarkeit von Bindings.
+
+        Args:
+            action: Name der Aktion.
+            parameters: Aktionsparameter.
+
+        Returns:
+            True wenn sichtbar, None wenn versteckt.
+        """
+        if action == "toggle_whitelist":
+            # Nur anzeigen wenn eine Whitelist geladen wurde
+            return True if self._whitelist is not None else None
+        if action == "show_history":
+            # Nur anzeigen wenn kein Scan und keine Sitemap-Ladung laeuft
+            return None if self._scan_running or self._sitemap_loading else True
+        if action == "start_scan":
+            # Nur anzeigen wenn Sitemap nicht gerade geladen wird
+            return None if self._sitemap_loading else True
+        return True
+
+    def action_toggle_whitelist(self) -> None:
+        """Schaltet die Whitelist um und aktualisiert alle Ergebnisse."""
+        self._whitelist_active = not self._whitelist_active
+
+        if self._whitelist_active:
+            # Whitelist aktivieren: Patterns erneut anwenden
+            total_ignored = 0
+            for result in self._results:
+                total_ignored += self._whitelist.apply(result)
+            ignored_info = f" ({total_ignored} Fehler ignoriert)" if total_ignored > 0 else ""
+            self._write_log(f"[green]Whitelist aktiviert{ignored_info}[/green]")
+        else:
+            # Whitelist deaktivieren: alle whitelisted-Flags zuruecksetzen
+            for result in self._results:
+                for error in result.errors:
+                    error.whitelisted = False
+            self._write_log("[yellow]Whitelist deaktiviert[/yellow]")
+
+        # Binding-Label aktualisieren (Binding ist frozen -> dataclasses.replace)
+        label = "Whitelist AN" if self._whitelist_active else "Whitelist AUS"
+        bindings_list = self._bindings.key_to_bindings.get("w", [])
+        for i, binding in enumerate(bindings_list):
+            if binding.action == "toggle_whitelist":
+                self._bindings.key_to_bindings["w"][i] = dataclasses.replace(
+                    binding, description=label
+                )
+                break
+
+        # UI komplett aktualisieren
+        table = self.query_one("#results-table", ResultsTable)
+        table.load_results(self._results)
+
+        summary = self.query_one("#summary", SummaryPanel)
+        summary.update_from_results(self._results)
+
+        detail = self.query_one("#error-detail", ErrorDetailView)
+        detail.refresh()
+
+        self.refresh_bindings()
+
+    def watch_theme(self, theme_name: str) -> None:
+        """Speichert das Theme bei Aenderung persistent.
+
+        Args:
+            theme_name: Name des neuen Themes.
+        """
+        self._settings.theme = theme_name
+        self._settings.save()
+
+    def action_toggle_consent(self) -> None:
+        """Schaltet die Consent-Akzeptierung um (AN/AUS)."""
+        self.accept_consent = not self.accept_consent
+
+        if self.accept_consent:
+            self._write_log("[green]Consent-Akzeptierung aktiviert[/green]")
+        else:
+            self._write_log("[yellow]Consent-Akzeptierung deaktiviert (nur Banner verstecken)[/yellow]")
+
+        # Binding-Label aktualisieren
+        label = "Consent AN" if self.accept_consent else "Consent AUS"
+        bindings_list = self._bindings.key_to_bindings.get("n", [])
+        for i, binding in enumerate(bindings_list):
+            if binding.action == "toggle_consent":
+                self._bindings.key_to_bindings["n"][i] = dataclasses.replace(
+                    binding, description=label
+                )
+                break
+
+        # Einstellung persistent speichern
+        self._settings.accept_consent = self.accept_consent
+        self._settings.save()
+
+        self.refresh_bindings()
+
+    async def action_quit(self) -> None:
+        """Beendet die App und raeumt den Scanner sauber auf."""
+        if self._scanner:
+            self._scanner.cancel()
+
+            # Playwright-interne Futures werfen TargetClosedError wenn der
+            # Browser geschlossen wird waehrend noch Tasks laufen.
+            # Diese "fire-and-forget"-Futures kann niemand awaiten,
+            # daher unterdruecken wir die Warnung beim Shutdown.
+            loop = asyncio.get_running_loop()
+            original_handler = loop.get_exception_handler()
+
+            def _suppress_target_closed(the_loop, context):
+                exception = context.get("exception")
+                if exception is not None:
+                    exc_name = type(exception).__name__
+                    if exc_name == "TargetClosedError":
+                        return
+                if original_handler:
+                    original_handler(the_loop, context)
+                else:
+                    the_loop.default_exception_handler(context)
+
+            loop.set_exception_handler(_suppress_target_closed)
+
+            try:
+                await self._scanner._cleanup()
+            except Exception:
+                pass
+            self._scanner = None
+            self._scan_running = False
+        self.exit()
+
     def _write_log(self, line: str) -> None:
         """Schreibt eine Zeile ins Log-Widget und in den Puffer.
 
@@ -414,6 +728,44 @@ class ConsoleErrorScannerApp(App):
             self.query_one("#scan-log", RichLog).write(line)
         except Exception:
             pass
+
+
+def _format_duration(duration_ms: int) -> str:
+    """Formatiert eine Dauer in lesbarer Form.
+
+    Unter 60s: "12.3s", ab 60s: "2m 30s", ab 60m: "1h 5m 30s".
+
+    Args:
+        duration_ms: Dauer in Millisekunden.
+
+    Returns:
+        Formatierter String.
+    """
+    total_s = duration_ms / 1000
+    if total_s < 60:
+        return f"{total_s:.1f}s"
+    minutes = int(total_s // 60)
+    seconds = int(total_s % 60)
+    if minutes < 60:
+        return f"{minutes}m {seconds}s"
+    hours = minutes // 60
+    minutes = minutes % 60
+    return f"{hours}h {minutes}m {seconds}s"
+
+
+def _sanitize_filename(name: str) -> str:
+    """Bereinigt einen String fuer die Verwendung in Dateinamen.
+
+    Entfernt oder ersetzt Zeichen die in Dateinamen nicht erlaubt sind
+    (z.B. /, \\, :, *, ?, ", <, >, |).
+
+    Args:
+        name: Der zu bereinigende String (z.B. Hostname).
+
+    Returns:
+        Sicherer Dateiname-Bestandteil.
+    """
+    return re.sub(r'[/:*?"<>|\\]', "_", name).strip("_.")
 
 
 class _SitemapErrorScreen(ModalScreen):

@@ -33,6 +33,7 @@ class SummaryPanel(Widget):
         self._http_4xx: int = 0
         self._http_5xx: int = 0
         self._timeouts: int = 0
+        self._ignored: int = 0
         self._urls_with_errors: int = 0
 
     def render(self) -> RenderResult:
@@ -72,6 +73,8 @@ class SummaryPanel(Widget):
             text.append(f"5xx: {self._http_5xx}", style="bold red" if self._http_5xx > 0 else "dim")
             text.append("  |  ")
             text.append(f"Timeout: {self._timeouts}", style="bold yellow" if self._timeouts > 0 else "dim")
+            text.append("  |  ")
+            text.append(f"Ignored: {self._ignored}", style="dim")
 
         return text
 
@@ -91,6 +94,7 @@ class SummaryPanel(Widget):
         self._http_4xx = 0
         self._http_5xx = 0
         self._timeouts = 0
+        self._ignored = 0
         self._urls_with_errors = 0
         self.refresh()
 
@@ -102,7 +106,7 @@ class SummaryPanel(Widget):
         """
         self._scanned = sum(
             1 for r in results
-            if r.status in (PageStatus.OK, PageStatus.ERROR, PageStatus.TIMEOUT)
+            if r.status in (PageStatus.OK, PageStatus.WARNING, PageStatus.ERROR, PageStatus.TIMEOUT)
         )
         self._console_errors = sum(r.console_error_count for r in results)
         self._console_warnings = sum(r.console_warning_count for r in results)
@@ -110,5 +114,6 @@ class SummaryPanel(Widget):
         self._http_4xx = sum(r.http_4xx_count for r in results)
         self._http_5xx = sum(r.http_5xx_count for r in results)
         self._timeouts = sum(1 for r in results if r.status == PageStatus.TIMEOUT)
+        self._ignored = sum(r.ignored_count for r in results)
         self._urls_with_errors = sum(1 for r in results if r.has_errors)
         self.refresh()

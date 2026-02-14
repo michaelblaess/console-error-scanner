@@ -45,6 +45,7 @@ class Scanner:
         console_level: str = "warn",
         user_agent: str = "",
         cookies: Optional[list[dict[str, str]]] = None,
+        accept_consent: bool = True,
     ) -> None:
         self.concurrency = concurrency
         self.timeout = timeout
@@ -52,6 +53,7 @@ class Scanner:
         self.console_level = console_level
         self.user_agent = user_agent or self.DEFAULT_USER_AGENT
         self.cookies = cookies or []
+        self.accept_consent = accept_consent
         self._captured_types = self.CONSOLE_LEVELS.get(console_level, {"error", "warning"})
         self._cancelled = False
         self._browser: Optional[Browser] = None
@@ -115,7 +117,7 @@ class Scanner:
 
                     status_text = result.status_icon
                     error_info = ""
-                    if result.has_errors:
+                    if result.has_issues:
                         error_info = f" | {result.total_error_count} Fehler"
                     log(f"  [{status_text}] {result.url} ({result.load_time_ms / 1000:.1f}s){error_info}")
 
@@ -301,6 +303,11 @@ class Scanner:
                 if msg_type not in captured_types:
                     return
 
+                # "Failed to load resource" ueberspringen - HTTP-Fehler werden
+                # bereits ueber den Response-Handler erfasst (vermeidet Doubletten)
+                if text.startswith("Failed to load resource:"):
+                    return
+
                 location = msg.location or {}
 
                 # error -> CONSOLE_ERROR, alles andere -> CONSOLE_WARNING
@@ -392,37 +399,31 @@ class Scanner:
             if response:
                 result.http_status_code = response.status
 
-            # Consent-Banner automatisch akzeptieren (Usercentrics, OneTrust, CookieBot)
-            # Ohne Consent laden viele Websites keine Tracking-Scripts,
-            # dadurch treten auch keine CSP-Violations auf.
-            try:
-                consent_result = await page.evaluate("""() => {
-                    // Usercentrics
-                    if (window.UC_UI && typeof window.UC_UI.acceptAllConsents === 'function') {
-                        window.UC_UI.acceptAllConsents();
-                        return 'usercentrics';
-                    }
-                    // OneTrust
-                    if (window.OneTrust && typeof window.OneTrust.AllowAll === 'function') {
-                        window.OneTrust.AllowAll();
-                        return 'onetrust';
-                    }
-                    // CookieBot
-                    if (window.Cookiebot && typeof window.Cookiebot.submitCustomConsent === 'function') {
-                        window.Cookiebot.submitCustomConsent(true, true, true);
-                        return 'cookiebot';
-                    }
-                    return null;
-                }""")
-                if consent_result:
-                    log(f"    Consent akzeptiert ({consent_result}), warte auf Scripts...")
-                    await page.wait_for_timeout(3000)
-                else:
-                    await page.wait_for_timeout(2000)
-            except Exception:
-                await page.wait_for_timeout(2000)
+            # Consent-Banner behandeln (akzeptieren oder nur verstecken)
+            if self.accept_consent:
+                await self._accept_consent(page, log)
+            else:
+                # Nur Banner verstecken, NICHT akzeptieren
+                log("    Consent-Banner versteckt (kein Consent akzeptiert)")
+                await self._hide_consent_banners(page)
+                await page.wait_for_timeout(1000)
 
-            result.status = PageStatus.ERROR if result.has_errors else PageStatus.OK
+            # Doubletten entfernen: gleiche (error_type, message, source) nur einmal
+            seen = set()
+            unique_errors = []
+            for error in result.errors:
+                key = (error.error_type, error.message, error.source)
+                if key not in seen:
+                    seen.add(key)
+                    unique_errors.append(error)
+            result.errors = unique_errors
+
+            if result.has_errors:
+                result.status = PageStatus.ERROR
+            elif result.has_issues:
+                result.status = PageStatus.WARNING
+            else:
+                result.status = PageStatus.OK
 
         finally:
             # CDP-Session sauber schliessen
@@ -431,6 +432,147 @@ class Scanner:
             except Exception:
                 pass
             await context.close()
+
+    async def _accept_consent(
+        self,
+        page: Page,
+        log: Callable[[str], None] = lambda _: None,
+    ) -> None:
+        """Akzeptiert Cookie-Consent-Banner automatisch (3 Phasen).
+
+        Phase 1: JavaScript-APIs (Usercentrics, OneTrust, CookieBot).
+        Phase 2: Button-Klick Fallback (16 Selektoren).
+        Phase 3: CSS-Hide (immer).
+
+        Args:
+            page: Die Playwright-Page.
+            log: Logging-Callback.
+        """
+        # Phase 1: JavaScript-API aufrufen
+        try:
+            consent_result = await page.evaluate("""() => {
+                // Usercentrics
+                if (window.UC_UI && typeof window.UC_UI.acceptAllConsents === 'function') {
+                    window.UC_UI.acceptAllConsents();
+                    return 'usercentrics';
+                }
+                // OneTrust
+                if (window.OneTrust && typeof window.OneTrust.AllowAll === 'function') {
+                    window.OneTrust.AllowAll();
+                    return 'onetrust';
+                }
+                // CookieBot
+                if (window.Cookiebot && typeof window.Cookiebot.submitCustomConsent === 'function') {
+                    window.Cookiebot.submitCustomConsent(true, true, true);
+                    return 'cookiebot';
+                }
+                return null;
+            }""")
+            if consent_result:
+                log(f"    Consent akzeptiert ({consent_result})")
+                await page.wait_for_timeout(2000)
+                # Banner verstecken als Sicherheit
+                await self._hide_consent_banners(page)
+                return
+        except Exception:
+            pass
+
+        # Phase 2: Fallback - Consent-Buttons per Klick akzeptieren
+        consent_selectors = [
+            # Usercentrics Buttons
+            '[data-testid="uc-accept-all-button"]',
+            '#uc-btn-accept-banner',
+            '.uc-btn-accept',
+            # OneTrust Buttons
+            '#onetrust-accept-btn-handler',
+            '.onetrust-close-btn-handler',
+            # CookieBot Buttons
+            '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
+            '#CybotCookiebotDialogBodyButtonAccept',
+            # Generische Consent-Buttons
+            '[data-cookie-accept]',
+            '[data-consent-accept]',
+            'button[class*="accept"]',
+            'button[class*="consent"]',
+            'a[class*="accept"]',
+            '.cookie-accept',
+            '.cookie-consent-accept',
+            '#cookie-accept',
+            '#accept-cookies',
+            '.cc-accept',
+            '.cc-btn.cc-allow',
+        ]
+
+        clicked = False
+        for selector in consent_selectors:
+            try:
+                button = page.locator(selector).first
+                if await button.is_visible(timeout=500):
+                    await button.click(timeout=2000)
+                    log(f"    Consent-Button geklickt: {selector}")
+                    clicked = True
+                    break
+            except Exception:
+                continue
+
+        if clicked:
+            await page.wait_for_timeout(2000)
+
+        # Phase 3: Banner per CSS verstecken (immer)
+        await self._hide_consent_banners(page)
+
+        if not clicked:
+            await page.wait_for_timeout(1000)
+
+    async def _hide_consent_banners(self, page: Page) -> None:
+        """Versteckt gaengige Consent-Banner per CSS display:none.
+
+        Behandelt 16 Selektoren, Usercentrics Shadow DOM
+        und setzt body.overflow zurueck.
+
+        Args:
+            page: Die Playwright-Page.
+        """
+        try:
+            await page.evaluate("""() => {
+                var selectors = [
+                    '#usercentrics-root',
+                    '#uc-banner',
+                    '.uc-banner',
+                    '#onetrust-banner-sdk',
+                    '#onetrust-consent-sdk',
+                    '#CybotCookiebotDialog',
+                    '#CybotCookiebotDialogBodyUnderlay',
+                    '.cookie-banner',
+                    '.cookie-consent',
+                    '.cookie-notice',
+                    '[class*="cookie-banner"]',
+                    '[class*="cookie-consent"]',
+                    '[id*="cookie-banner"]',
+                    '[id*="cookie-consent"]',
+                    '[class*="consent-banner"]',
+                    '[class*="CookieConsent"]',
+                ];
+                selectors.forEach(function(sel) {
+                    try {
+                        var els = document.querySelectorAll(sel);
+                        els.forEach(function(el) { el.style.display = 'none'; });
+                    } catch(e) {}
+                });
+
+                // Usercentrics Shadow DOM
+                var ucRoot = document.getElementById('usercentrics-root');
+                if (ucRoot && ucRoot.shadowRoot) {
+                    var shadowBanners = ucRoot.shadowRoot.querySelectorAll('[class*="banner"]');
+                    shadowBanners.forEach(function(el) { el.style.display = 'none'; });
+                }
+
+                // Body Overflow zuruecksetzen (Consent-Banner blockieren oft Scrollen)
+                document.body.style.overflow = '';
+                document.documentElement.style.overflow = '';
+            }""")
+        except Exception:
+            pass
 
     async def _launch_browser(self) -> Browser:
         """Startet den Chromium-Browser.
