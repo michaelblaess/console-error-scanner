@@ -15,8 +15,8 @@ if getattr(sys, "frozen", False):
     if os.path.isdir(_browsers_dir):
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = _browsers_dir
 
-from . import __version__
-from .app import ConsoleErrorScannerApp
+from console_error_scanner import __version__
+from console_error_scanner.app import ConsoleErrorScannerApp
 
 
 BANNER = f"""
