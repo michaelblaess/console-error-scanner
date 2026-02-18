@@ -337,9 +337,17 @@ class Scanner:
             page.on("pageerror", on_pageerror)
 
             # HTTP-Fehler Handler registrieren
+            page_size = 0
+
             def on_response(response):
+                nonlocal page_size
                 status = response.status
                 url = response.url
+
+                # Transfer-Groesse aufsummieren
+                content_length = response.headers.get("content-length", "")
+                if content_length.isdigit():
+                    page_size += int(content_length)
 
                 # Haupt-Seiten-Status merken
                 if response.request.resource_type == "document":
@@ -395,6 +403,7 @@ class Scanner:
             )
             elapsed = time.monotonic() - start_time
             result.load_time_ms = int(elapsed * 1000)
+            result.page_size_bytes = page_size
 
             if response:
                 result.http_status_code = response.status

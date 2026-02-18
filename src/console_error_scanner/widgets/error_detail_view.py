@@ -8,7 +8,7 @@ from rich.text import Text
 from textual.app import RenderResult
 from textual.widget import Widget
 
-from ..models.scan_result import ErrorType, ScanResult, PageStatus
+from ..models.scan_result import ErrorType, ScanResult, PageStatus, format_page_size
 
 
 # Maximale Laenge fuer URLs in der Anzeige
@@ -41,11 +41,13 @@ class ErrorDetailView(Widget):
             return Text("Keine URL ausgewaehlt.\n\nWaehle eine URL in der Tabelle aus.", style="dim italic")
 
         result = self._result
-        text = Text()
+        text = Text(overflow="fold")
 
-        # URL-Header
+        # URL-Header (mit OSC 8 Link fuer CTRL+Click im Terminal)
         text.append("URL\n", style="bold underline")
-        text.append(f"{result.url}\n\n", style="bold cyan")
+        safe_url = _sanitize_url_for_link(result.url)
+        text.append(result.url, style=f"bold cyan link {safe_url}")
+        text.append("\n\n")
 
         # Status-Zeile
         text.append("Status: ", style="bold")
@@ -65,6 +67,9 @@ class ErrorDetailView(Widget):
         if result.load_time_ms > 0:
             load_s = result.load_time_ms / 1000
             text.append(f"  |  {load_s:.1f}s")
+
+        if result.page_size_bytes > 0:
+            text.append(f"  |  {format_page_size(result.page_size_bytes)}")
 
         if result.retry_count > 0:
             text.append(f"  |  {result.retry_count} Retries", style="yellow")
@@ -149,9 +154,10 @@ class ErrorDetailView(Widget):
 
             for idx, error in enumerate(http_404, 1):
                 text.append(f"  {idx}. ", style="bold yellow")
-                url_display = _truncate_url(error.source or error.message)
-                text.append(f"{url_display}\n", style="bold white")
-                text.append("\n")
+                error_url = error.source or error.message
+                safe_error_url = _sanitize_url_for_link(error_url)
+                text.append(error_url, style=f"bold white link {safe_error_url}")
+                text.append("\n\n")
 
         # HTTP 4xx (ohne 404)
         http_4xx = [e for e in active_errors if e.error_type == ErrorType.HTTP_4XX]
@@ -217,6 +223,20 @@ class ErrorDetailView(Widget):
         self.refresh()
 
 
+def _sanitize_url_for_link(url: str) -> str:
+    """Escaped Klammern in URLs fuer OSC 8 Terminal-Hyperlinks.
+
+    URLs mit () werden von Terminals beim CTRL+Click abgeschnitten.
+
+    Args:
+        url: Die zu bereinigende URL.
+
+    Returns:
+        URL mit escapten Klammern.
+    """
+    return url.replace("(", "%28").replace(")", "%29")
+
+
 def _append_error_message(text: Text, error) -> None:
     """Haengt eine formatierte Fehlermeldung mit Stack-Trace an.
 
@@ -242,13 +262,16 @@ def _append_error_message(text: Text, error) -> None:
     if len(msg_lines) > 4:
         text.append(f"       ... ({len(msg_lines) - 4} weitere Zeilen)\n", style="dim")
 
-    # Quelle
+    # Quelle (volle URL mit OSC 8 Link)
     if error.source:
-        source_display = _shorten_url(error.source)
-        source_line = f"     Quelle: {source_display}"
-        if error.line_number:
-            source_line += f":{error.line_number}"
-        text.append(f"{source_line}\n", style="dim cyan")
+        text.append("     Quelle: ", style="dim cyan")
+        safe_source = _sanitize_url_for_link(error.source)
+        source_suffix = f":{error.line_number}" if error.line_number else ""
+        text.append(
+            f"{error.source}{source_suffix}",
+            style=f"dim cyan link {safe_source}",
+        )
+        text.append("\n")
 
 
 # Regex: erkennt URLs in Stack-Trace-Zeilen (https://... oder http://...)
