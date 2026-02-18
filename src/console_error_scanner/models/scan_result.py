@@ -56,6 +56,7 @@ class ScanResult:
     status: PageStatus = PageStatus.PENDING
     http_status_code: int = 0
     load_time_ms: int = 0
+    page_size_bytes: int = 0
     errors: list[PageError] = field(default_factory=list)
     retry_count: int = 0
 
@@ -139,6 +140,7 @@ class ScanResult:
             "status": self.status.value,
             "http_status_code": self.http_status_code,
             "load_time_ms": self.load_time_ms,
+            "page_size_bytes": self.page_size_bytes,
             "total_errors": self.total_error_count,
             "console_errors": self.console_error_count,
             "console_warnings": self.console_warning_count,
@@ -208,3 +210,25 @@ class ScanSummary:
             "total_ignored": self.total_ignored,
             "scan_duration_ms": self.scan_duration_ms,
         }
+
+
+def format_page_size(size_bytes: int) -> str:
+    """Formatiert Bytes in lesbare Groesse (KB oder MB).
+
+    Unter 1 MB: "245 KB", ab 1 MB: "1.3 MB".
+
+    Args:
+        size_bytes: Groesse in Bytes.
+
+    Returns:
+        Formatierter String.
+    """
+    if size_bytes <= 0:
+        return "-"
+    kb = size_bytes / 1024
+    if kb < 1:
+        return "< 1 KB"
+    if kb < 1024:
+        return f"{kb:.0f} KB"
+    mb = kb / 1024
+    return f"{mb:.1f} MB"
