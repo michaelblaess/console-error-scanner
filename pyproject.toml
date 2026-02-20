@@ -12,6 +12,7 @@ dependencies = [
     "rich>=13.0",
     "playwright>=1.40",
     "httpx>=0.25",
+    "textual-themes @ git+https://github.com/michaelblaess/textual-themes.git",
 ]
 
 [project.scripts]
