@@ -18,6 +18,8 @@ from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import Footer, Header, RichLog
 
+from textual_themes import register_all
+
 from . import __version__, __year__
 from .models.history import History, HistoryEntry
 from .models.settings import Settings
@@ -78,6 +80,9 @@ class ConsoleErrorScannerApp(App):
         accept_consent: bool | None = None,
     ) -> None:
         super().__init__()
+
+        # Retro-Themes registrieren (C64, Amiga, Atari ST, IBM Terminal, NeXTSTEP, BeOS)
+        register_all(self)
 
         # Persistierte Einstellungen laden
         self._settings = Settings.load()
