@@ -338,16 +338,19 @@ class Scanner:
 
             # HTTP-Fehler Handler registrieren
             page_size = 0
+            page_domain = urlparse(result.url).hostname or ""
 
             def on_response(response):
                 nonlocal page_size
                 status = response.status
                 url = response.url
 
-                # Transfer-Groesse aufsummieren
-                content_length = response.headers.get("content-length", "")
-                if content_length.isdigit():
-                    page_size += int(content_length)
+                # Transfer-Groesse aufsummieren (nur Same-Domain-Ressourcen)
+                resp_domain = urlparse(url).hostname or ""
+                if resp_domain == page_domain:
+                    content_length = response.headers.get("content-length", "")
+                    if content_length.isdigit():
+                        page_size += int(content_length)
 
                 # Haupt-Seiten-Status merken
                 if response.request.resource_type == "document":
