@@ -16,6 +16,9 @@
     "*net::ERR_BLOCKED_BY_ORB*",
     "*www.facebook.com*",
     "*connect.facebook.net*",
-    "*env-v2771_rz_avatar*"
+    "*env-v2771_rz_avatar*",
+    "*Intervention: Slow network is detected*",
+    "*https://az416426.vo.msecnd.net/scripts/a/ai.0.js*",
+    "*https://dev.pcu.mitgas.de/pcu-api/v2/price/calculation*"
   ]
 }
