@@ -19,6 +19,8 @@
     "*env-v2771_rz_avatar*",
     "*Intervention: Slow network is detected*",
     "*https://az416426.vo.msecnd.net/scripts/a/ai.0.js*",
-    "*https://dev.pcu.mitgas.de/pcu-api/v2/price/calculation*"
+    "*https://dev.pcu.mitgas.de/pcu-api/v2/price/calculation*",
+    "*net::ERR_NETWORK_CHANGED*",
+    "*Fehlender Consent: Easy-feedback*"
   ]
 }
