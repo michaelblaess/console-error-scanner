@@ -61,6 +61,7 @@ class ConsoleErrorScannerApp(App):
         Binding("escape", "unfocus_filter", "Filter leeren", show=False),
         Binding("n", "toggle_consent", "Consent AN"),
         Binding("c", "copy_log", "Log kopieren"),
+        Binding("d", "copy_details", "Details kopieren"),
         Binding("i", "show_about", "Info"),
     ]
 
@@ -526,6 +527,22 @@ class ConsoleErrorScannerApp(App):
         self.copy_to_clipboard(text)
         self.notify(f"Log kopiert ({len(self._log_lines)} Zeilen)")
 
+    def action_copy_details(self) -> None:
+        """Kopiert die Detail-Ansicht (rechter Bereich) in die Zwischenablage."""
+        detail = self.query_one("#error-detail", ErrorDetailView)
+        if detail._result is None:
+            self.notify("Keine URL ausgewaehlt.", severity="warning")
+            return
+
+        rendered = detail.render()
+        if isinstance(rendered, Text):
+            plain = rendered.plain
+        else:
+            plain = str(rendered)
+
+        self.copy_to_clipboard(plain)
+        self.notify("Details kopiert")
+
     def action_show_top_errors(self) -> None:
         """Zeigt den Top-10-Fehler Dialog."""
         if not self._results:
@@ -808,7 +825,7 @@ def _format_progress_bar(current: int, total: int) -> str:
     if total <= 0:
         return "░" * _BAR_WIDTH
     filled = int(_BAR_WIDTH * current / total)
-    return "━" * filled + "░" * (_BAR_WIDTH - filled)
+    return "█" * filled + "░" * (_BAR_WIDTH - filled)
 
 
 def _format_duration(duration_ms: int) -> str:
