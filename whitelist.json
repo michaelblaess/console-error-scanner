@@ -17,6 +17,8 @@
     "*www.facebook.com*",
     "*connect.facebook.net*",
     "*Intervention: Slow network is detected*",
-    "*https://az416426.vo.msecnd.net/scripts/a/ai.0.js*"
+    "*https://az416426.vo.msecnd.net/scripts/a/ai.0.js*",
+    "*net::ERR_NETWORK_CHANGED*",
+    "*Fehlender Consent: Easy-feedback*"
   ]
 }
