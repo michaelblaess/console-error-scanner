@@ -40,12 +40,13 @@ class Scanner:
     def __init__(
         self,
         concurrency: int = 8,
-        timeout: int = 30,
+        timeout: int = 60,
         headless: bool = True,
         console_level: str = "warn",
         user_agent: str = "",
         cookies: Optional[list[dict[str, str]]] = None,
         accept_consent: bool = True,
+        trigger_lazy_load: bool = True,
     ) -> None:
         self.concurrency = concurrency
         self.timeout = timeout
@@ -54,6 +55,7 @@ class Scanner:
         self.user_agent = user_agent or self.DEFAULT_USER_AGENT
         self.cookies = cookies or []
         self.accept_consent = accept_consent
+        self.trigger_lazy_load = trigger_lazy_load
         self._captured_types = self.CONSOLE_LEVELS.get(console_level, {"error", "warning"})
         self._cancelled = False
         self._browser: Optional[Browser] = None
@@ -420,6 +422,10 @@ class Scanner:
                 await self._hide_consent_banners(page)
                 await page.wait_for_timeout(1000)
 
+            # Lazy-Loading triggern: Seite durchscrollen damit Bilder geladen werden
+            if self.trigger_lazy_load:
+                await self._trigger_lazy_loading(page, log)
+
             # Doubletten entfernen: gleiche (error_type, message, source) nur einmal
             seen = set()
             unique_errors = []
@@ -585,6 +591,63 @@ class Scanner:
             }""")
         except Exception:
             pass
+
+    async def _trigger_lazy_loading(
+        self,
+        page: Page,
+        log: Callable[[str], None] = lambda _: None,
+    ) -> None:
+        """Scrollt die Seite schrittweise durch, um Lazy-Loading-Bilder zu triggern.
+
+        Scrollt in Viewport-Schritten nach unten, dann zurueck nach oben.
+        Wartet anschliessend bis alle Bilder geladen sind (max 5s Polling).
+
+        Args:
+            page: Die Playwright-Page.
+            log: Logging-Callback.
+        """
+        try:
+            viewport_height = await page.evaluate("window.innerHeight")
+            scroll_height = await page.evaluate("document.documentElement.scrollHeight")
+
+            if scroll_height <= viewport_height:
+                log("    Kein Scroll noetig (Seite passt in Viewport)")
+                return
+
+            # Schrittweise nach unten scrollen
+            current = 0
+            step = viewport_height
+            steps = 0
+            while current < scroll_height:
+                current += step
+                await page.evaluate(f"window.scrollTo(0, {current})")
+                await page.wait_for_timeout(200)
+                steps += 1
+
+            # Zurueck nach oben scrollen
+            await page.evaluate("window.scrollTo(0, 0)")
+            await page.wait_for_timeout(300)
+
+            log(f"    Lazy-Loading: {steps} Scroll-Schritte ausgefuehrt")
+
+            # Warten bis alle Bilder geladen sind (max 5s Polling)
+            for _ in range(10):
+                all_loaded = await page.evaluate("""() => {
+                    var images = document.querySelectorAll('img');
+                    for (var i = 0; i < images.length; i++) {
+                        if (!images[i].complete) return false;
+                    }
+                    return true;
+                }""")
+                if all_loaded:
+                    break
+                await page.wait_for_timeout(500)
+
+            # Extra-Wartezeit fuer spaet getriggerte Bilder
+            await page.wait_for_timeout(1000)
+
+        except Exception as e:
+            log(f"    [dim]Lazy-Loading-Scroll fehlgeschlagen: {e}[/dim]")
 
     async def _launch_browser(self) -> Browser:
         """Startet den Browser (System-Chrome bevorzugt, Chromium als Fallback).
