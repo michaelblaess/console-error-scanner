@@ -40,7 +40,7 @@ Beispiele:
 Tastenkuerzel in der TUI:
   s = Scan starten    r = Reports speichern    t = Top 10 Fehler
   h = History         l = Log ein/aus          e = Nur Fehler
-  n = Consent-Toggle  / = Filter               + / - = Log-Hoehe
+  n = Consent-Toggle  g = Scroll-Toggle         + / - = Log-Hoehe
   i = Info            q = Beenden
 """
 
@@ -71,9 +71,9 @@ def main() -> None:
     parser.add_argument(
         "--timeout", "-t",
         type=int,
-        default=30,
+        default=60,
         metavar="SEC",
-        help="Timeout pro Seite in Sekunden (default: 30)",
+        help="Timeout pro Seite in Sekunden (default: 60)",
     )
     parser.add_argument(
         "--output-json",
@@ -131,6 +131,12 @@ def main() -> None:
         default=None,
         help="Cookie-Consent NICHT akzeptieren (Banner wird nur versteckt)",
     )
+    parser.add_argument(
+        "--no-scroll",
+        action="store_true",
+        default=None,
+        help="Seite nicht scrollen (kein Lazy-Loading Trigger)",
+    )
 
     args = parser.parse_args()
 
@@ -156,6 +162,7 @@ def main() -> None:
         cookies=cookies,
         whitelist_path=args.whitelist,
         accept_consent=not args.no_consent if args.no_consent is not None else None,
+        trigger_lazy_load=not args.no_scroll if args.no_scroll is not None else None,
     )
     app.run()
 

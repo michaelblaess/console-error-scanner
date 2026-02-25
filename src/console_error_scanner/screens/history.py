@@ -114,7 +114,7 @@ class HistoryScreen(ModalScreen[HistoryEntry | None]):
                         params.append(f"--level {entry.console_level}")
                     if entry.concurrency != 8:
                         params.append(f"-c {entry.concurrency}")
-                    if entry.timeout != 30:
+                    if entry.timeout != 60:
                         params.append(f"-t {entry.timeout}")
                     if entry.user_agent:
                         params.append("--user-agent ...")
