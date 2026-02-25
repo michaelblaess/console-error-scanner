@@ -73,6 +73,9 @@ console-error-scanner https://www.example.com --whitelist whitelist.json
 # Cookie-Consent NICHT akzeptieren (Banner wird nur per CSS versteckt)
 console-error-scanner https://www.example.com --no-consent
 
+# Lazy-Loading-Scroll deaktivieren (Seite wird nicht durchgescrollt)
+console-error-scanner https://www.example.com --no-scroll
+
 # Reports automatisch speichern
 console-error-scanner https://www.example.com --output-json report.json --output-html report.html
 
@@ -86,7 +89,7 @@ console-error-scanner https://www.example.com --no-headless
 |-----------|------|---------|-------------|
 | `URL` | | (pflicht) | URL der Website oder Sitemap (XML). Bei Domain-URLs wird die Sitemap automatisch gesucht |
 | `--concurrency` | `-c` | 8 | Max parallele Browser-Tabs |
-| `--timeout` | `-t` | 30 | Timeout pro Seite in Sekunden |
+| `--timeout` | `-t` | 60 | Timeout pro Seite in Sekunden |
 | `--output-json` | | | JSON-Report automatisch speichern |
 | `--output-html` | | | HTML-Report automatisch speichern |
 | `--no-headless` | | false | Browser sichtbar starten |
@@ -96,6 +99,7 @@ console-error-scanner https://www.example.com --no-headless
 | `--cookie` | | | Cookie setzen (NAME=VALUE), mehrfach verwendbar |
 | `--whitelist` | `-w` | | Pfad zur Whitelist-JSON (bekannte Fehler ignorieren) |
 | `--no-consent` | | false | Cookie-Consent NICHT akzeptieren (Banner wird nur versteckt) |
+| `--no-scroll` | | false | Seite nicht scrollen (kein Lazy-Loading Trigger) |
 
 ### Console-Level
 
@@ -106,6 +110,7 @@ console-error-scanner https://www.example.com --no-headless
 ## Features
 
 - **Sitemap Auto-Discovery**: Bei Domain-URLs wird die Sitemap automatisch ueber robots.txt und typische Pfade (/sitemap.xml, /sitemap/sitemap.xml, ...) gefunden
+- **Lazy-Loading Trigger**: Scrollt Seiten automatisch durch, um per IntersectionObserver nachgeladene Bilder zu triggern. Erkennt fehlende Bilder (404) unterhalb des Viewports. Per `g`-Taste oder `--no-scroll` umschaltbar
 - **Consent-Banner Behandlung**: 3-Phasen-Consent (JavaScript-API, Button-Klick Fallback, CSS-Hide) fuer Usercentrics, OneTrust, CookieBot und generische Banner. Per `n`-Taste oder `--no-consent` umschaltbar zwischen Akzeptieren und nur Verstecken
 - **CSP-Violation Erkennung**: Erkennt Content Security Policy Verstoesze via `pageerror` Events
 - **Fehlgeschlagene Requests**: Erkennt abgebrochene/fehlgeschlagene Netzwerk-Requests
@@ -113,7 +118,7 @@ console-error-scanner https://www.example.com --no-headless
 - **Whitelist**: Bekannte Fehler per Wildcard-Pattern ignorieren (z.B. attachShadow, AppInsights)
 - **Live-Updates**: Ergebnisse erscheinen sofort waehrend des Scans in der Tabelle
 - **Auto-Scroll**: Tabelle scrollt automatisch zur aktuell gescannten URL mit
-- **Settings-Persistenz**: Theme und Consent-Modus werden gespeichert
+- **Settings-Persistenz**: Theme, Consent-Modus und Scroll-Modus werden gespeichert
 - **Scan-History**: Vorherige Scans koennen per `h`-Taste wiederhergestellt werden
 
 ## Tastenkuerzel in der TUI
@@ -125,6 +130,7 @@ console-error-scanner https://www.example.com --no-headless
 | `t` | Top 10 Fehler anzeigen |
 | `h` | Scan-History anzeigen |
 | `n` | Consent-Toggle (AN = akzeptieren, AUS = nur Banner verstecken) |
+| `g` | Scroll-Toggle (AN = Lazy-Loading triggern, AUS = nicht scrollen) |
 | `l` | Log-Bereich ein/ausblenden |
 | `e` | Nur fehlerhafte URLs anzeigen |
 | `c` | Log in Zwischenablage kopieren |
@@ -263,7 +269,7 @@ src/console_error_scanner/
     scan_result.py      ScanResult, PageError, Enums
     sitemap.py          Sitemap-Parser + Auto-Discovery
     history.py          Scan-History Persistenz
-    settings.py         Settings Persistenz (Theme, Consent)
+    settings.py         Settings Persistenz (Theme, Consent, Scroll)
     whitelist.py        Whitelist (Wildcard-Pattern Matching)
   widgets/
     results_table.py    DataTable mit Filter + Auto-Scroll

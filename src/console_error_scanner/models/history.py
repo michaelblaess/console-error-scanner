@@ -36,19 +36,21 @@ class HistoryEntry:
         cookies: Liste der Cookies als Dicts.
         whitelist_path: Pfad zur Whitelist-JSON oder leer.
         accept_consent: True=Consent akzeptieren, False=nur Banner verstecken.
+        trigger_lazy_load: True=Seite scrollen fuer Lazy-Loading.
     """
 
     sitemap_url: str
     timestamp: str = ""
     user: str = ""
     concurrency: int = 8
-    timeout: int = 30
+    timeout: int = 60
     console_level: str = "warn"
     url_filter: str = ""
     user_agent: str = ""
     cookies: list[dict[str, str]] = field(default_factory=list)
     whitelist_path: str = ""
     accept_consent: bool = True
+    trigger_lazy_load: bool = True
 
     def to_dict(self) -> dict:
         """Konvertiert den Eintrag in ein Dictionary fuer JSON.
@@ -68,6 +70,7 @@ class HistoryEntry:
             "cookies": self.cookies,
             "whitelist_path": self.whitelist_path,
             "accept_consent": self.accept_consent,
+            "trigger_lazy_load": self.trigger_lazy_load,
         }
 
     @staticmethod
@@ -85,13 +88,14 @@ class HistoryEntry:
             timestamp=data.get("timestamp", ""),
             user=data.get("user", ""),
             concurrency=data.get("concurrency", 8),
-            timeout=data.get("timeout", 30),
+            timeout=data.get("timeout", 60),
             console_level=data.get("console_level", "warn"),
             url_filter=data.get("url_filter", ""),
             user_agent=data.get("user_agent", ""),
             cookies=data.get("cookies", []),
             whitelist_path=data.get("whitelist_path", ""),
             accept_consent=data.get("accept_consent", True),
+            trigger_lazy_load=data.get("trigger_lazy_load", True),
         )
 
     def display_label(self) -> str:
@@ -128,6 +132,9 @@ class HistoryEntry:
 
         if not self.accept_consent:
             parts.append("--no-consent")
+
+        if not self.trigger_lazy_load:
+            parts.append("--no-scroll")
 
         return " | ".join(parts)
 
