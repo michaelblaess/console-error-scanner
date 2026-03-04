@@ -19,6 +19,7 @@
     "*Intervention: Slow network is detected*",
     "*https://az416426.vo.msecnd.net/scripts/a/ai.0.js*",
     "*net::ERR_NETWORK_CHANGED*",
-    "*Fehlender Consent: Easy-feedback*"
+    "*Fehlender Consent: Easy-feedback*",
+    "*carouselWrapper is not initialized yet.*"
   ]
 }
