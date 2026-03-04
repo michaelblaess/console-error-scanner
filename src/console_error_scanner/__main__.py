@@ -15,8 +15,8 @@ if getattr(sys, "frozen", False):
     if os.path.isdir(_browsers_dir):
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = _browsers_dir
 
-from . import __version__
-from .app import ConsoleErrorScannerApp
+from console_error_scanner import __version__
+from console_error_scanner.app import ConsoleErrorScannerApp
 
 
 BANNER = f"""
@@ -26,13 +26,16 @@ BANNER = f"""
 
 USAGE_EXAMPLES = """
 Beispiele:
+  console-error-scanner https://example.com
   console-error-scanner https://example.com/sitemap.xml
-  console-error-scanner https://example.com/sitemap.xml --concurrency 12
-  console-error-scanner https://example.com/sitemap.xml --output-html report.html
+  console-error-scanner sitemap.xml
+  console-error-scanner C:\\output\\sitemap_example-com_20260214.xml
+  console-error-scanner https://example.com --concurrency 12
+  console-error-scanner https://example.com --output-html report.html
   console-error-scanner https://example.com/sitemap.xml --console-level error
-  console-error-scanner https://example.com/sitemap.xml --filter /produkte
-  console-error-scanner https://test.example.com/sitemap.xml --cookie auth=token123
-  console-error-scanner https://example.com/sitemap.xml --whitelist whitelist.json
+  console-error-scanner https://example.com --filter /produkte
+  console-error-scanner https://test.example.com --cookie auth=token123
+  console-error-scanner https://example.com --whitelist whitelist.json
 
 Tastenkuerzel in der TUI:
   s = Scan starten    r = Reports speichern    t = Top 10 Fehler
@@ -55,8 +58,8 @@ def main() -> None:
         "sitemap_url",
         nargs="?",
         default="",
-        metavar="SITEMAP_URL",
-        help="URL der Sitemap (XML)",
+        metavar="URL_OR_FILE",
+        help="URL der Website, Sitemap-URL oder lokale sitemap.xml Datei. Bei Domain-URLs wird die Sitemap automatisch gesucht.",
     )
     parser.add_argument(
         "--concurrency", "-c",

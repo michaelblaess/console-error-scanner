@@ -337,9 +337,17 @@ class Scanner:
             page.on("pageerror", on_pageerror)
 
             # HTTP-Fehler Handler registrieren
+            page_size = 0
+
             def on_response(response):
+                nonlocal page_size
                 status = response.status
                 url = response.url
+
+                # Transfer-Groesse aufsummieren
+                content_length = response.headers.get("content-length", "")
+                if content_length.isdigit():
+                    page_size += int(content_length)
 
                 # Haupt-Seiten-Status merken
                 if response.request.resource_type == "document":
@@ -395,6 +403,7 @@ class Scanner:
             )
             elapsed = time.monotonic() - start_time
             result.load_time_ms = int(elapsed * 1000)
+            result.page_size_bytes = page_size
 
             if response:
                 result.http_status_code = response.status
@@ -575,18 +584,34 @@ class Scanner:
             pass
 
     async def _launch_browser(self) -> Browser:
-        """Startet den Chromium-Browser.
+        """Startet den Browser (System-Chrome bevorzugt, Chromium als Fallback).
+
+        Versucht zuerst den installierten System-Chrome zu nutzen (channel="chrome").
+        Falls nicht vorhanden, wird auf das gebundelte Playwright-Chromium zurueckgegriffen.
 
         Returns:
             Playwright Browser-Instanz.
         """
+        launch_args = [
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+            "--no-sandbox",
+        ]
+
+        # System-Chrome bevorzugen
+        try:
+            return await self._playwright.chromium.launch(
+                channel="chrome",
+                headless=self.headless,
+                args=launch_args,
+            )
+        except Exception:
+            pass
+
+        # Fallback: gebundeltes Chromium
         return await self._playwright.chromium.launch(
             headless=self.headless,
-            args=[
-                "--disable-gpu",
-                "--disable-dev-shm-usage",
-                "--no-sandbox",
-            ],
+            args=launch_args,
         )
 
     async def _check_network(self) -> bool:

@@ -11,6 +11,8 @@ Ausfuehren: pyinstaller console-error-scanner.spec
 import os
 import importlib
 
+from PyInstaller.utils.hooks import collect_submodules
+
 block_cipher = None
 
 # Pfade ermitteln
@@ -72,6 +74,7 @@ a = Analysis(
         "rich.text",
         "rich.markup",
         "rich.highlighter",
+    ] + collect_submodules("rich._unicode_data") + [
         # Async/Networking
         "httpx",
         "httpx._transports",

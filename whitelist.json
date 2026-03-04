@@ -13,6 +13,9 @@
     "*The script resource is behind a redirect*",
     "*autologon.microsoftazuread-sso.com*",
     "*winauth/ssoprobe*",
-    "*net::ERR_BLOCKED_BY_ORB*"
+    "*net::ERR_BLOCKED_BY_ORB*",
+    "*www.facebook.com*",
+    "*connect.facebook.net*",
+    "*env-v2771_rz_avatar*"
   ]
 }
