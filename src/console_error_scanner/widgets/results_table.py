@@ -64,6 +64,7 @@ class ResultsTable(Vertical):
         super().__init__(**kwargs)
         self._results: list[ScanResult] = []
         self._filtered: list[ScanResult] = []
+        self._col_keys: list = []
         self._show_only_errors: bool = False
         self._spinner_frame: int = 0
         self._spinner_timer = None
@@ -79,16 +80,24 @@ class ResultsTable(Vertical):
     def on_mount(self) -> None:
         """Initialisiert die Tabellenspalten und startet den Spinner-Timer."""
         table = self.query_one("#results-data", DataTable)
-        table.add_columns("#", "Status", "URL", "HTTP", "Zeit", "Size", "Errors", "Warns", "404", "4xx", "5xx", "Ignored")
+        self._col_keys = table.add_columns(
+            "#", "Status", "URL", "HTTP", "Zeit", "Size",
+            "Errors", "Warns", "404", "4xx", "5xx", "Ignored",
+        )
         self._spinner_timer = self.set_interval(0.3, self._tick_spinner)
 
     def _tick_spinner(self) -> None:
-        """Aktualisiert den Spinner-Frame und refresht die Tabelle wenn noetig."""
+        """Aktualisiert den Spinner-Frame fuer SCANNING-Zeilen in-place."""
         has_scanning = any(r.status == PageStatus.SCANNING for r in self._filtered)
         if not has_scanning:
             return
         self._spinner_frame = (self._spinner_frame + 1) % len(self.SPINNER_FRAMES)
-        self._refresh_table()
+        table = self.query_one("#results-data", DataTable)
+        for idx, result in enumerate(self._filtered):
+            if result.status == PageStatus.SCANNING:
+                table.update_cell(
+                    str(idx), self._col_keys[1], self._styled_status(result),
+                )
 
     def load_results(self, results: list[ScanResult]) -> None:
         """Laedt Ergebnisse in die Tabelle.
@@ -107,34 +116,100 @@ class ResultsTable(Vertical):
     def update_result(self, result: ScanResult) -> None:
         """Aktualisiert ein einzelnes Ergebnis in der Tabelle.
 
-        Bei aktivem Auto-Scroll wird der Cursor zur aktualisierten
-        Zeile bewegt, damit der User den Fortschritt verfolgen kann.
+        Aktualisiert Zellen in-place (kein clear/rebuild), damit die
+        Scroll-Position erhalten bleibt.  Bei aktivem Filter wird
+        ein vollstaendiger Rebuild durchgefuehrt falls sich die
+        Tabellenstruktur aendern koennte.
 
         Args:
             result: Das aktualisierte ScanResult.
         """
-        # Ergebnis in der Liste aktualisieren (wird per Referenz geteilt)
-        self._apply_filter()
+        if self._show_only_errors or self.filter_text:
+            # Filter aktiv - Struktur koennte sich aendern
+            self._rebuild_filtered()
+            if self._auto_scroll:
+                self._scroll_to_result(result)
+            self._refresh_table()
+            return
+
+        # Kein Filter - Zellen in-place aktualisieren (kein clear/rebuild)
+        try:
+            idx = self._filtered.index(result)
+        except ValueError:
+            return
+
+        table = self.query_one("#results-data", DataTable)
+        self._update_row_cells(table, idx, result)
 
         if self._auto_scroll:
-            self._scroll_to_result(result)
+            if idx >= self._auto_scroll_row:
+                self._auto_scroll_row = idx
+            table.move_cursor(row=self._auto_scroll_row)
+
+    def _update_row_cells(self, table: DataTable, idx: int, result: ScanResult) -> None:
+        """Aktualisiert alle Zellen einer Zeile in-place.
+
+        Args:
+            table: Die DataTable-Instanz.
+            idx: Zeilen-Index in der gefilterten Liste.
+            result: Das aktualisierte ScanResult.
+        """
+        row_key = str(idx)
+        status_text = self._styled_status(result)
+        scanned = result.status not in (PageStatus.PENDING, PageStatus.SCANNING)
+
+        if scanned:
+            errors_text = _colored_count(result.console_error_count, "bold red")
+            warns_text = _colored_count(result.console_warning_count, "bold yellow")
+            http_404_text = _colored_count(result.http_404_count, "bold yellow")
+            http_4xx_text = _colored_count(result.http_4xx_count, "bold yellow")
+            http_5xx_text = _colored_count(result.http_5xx_count, "bold red")
+            ignored_text = (
+                Text(str(result.ignored_count), style="dim")
+                if result.ignored_count > 0
+                else Text("0", style="dim")
+            )
+        else:
+            errors_text = Text("-", style="dim")
+            warns_text = Text("-", style="dim")
+            http_404_text = Text("-", style="dim")
+            http_4xx_text = Text("-", style="dim")
+            http_5xx_text = Text("-", style="dim")
+            ignored_text = Text("-", style="dim")
+
+        http_code_str = str(result.http_status_code) if result.http_status_code > 0 else "-"
+        time_str = f"{result.load_time_ms / 1000:.1f}s" if result.load_time_ms > 0 else "-"
+        size_str = format_page_size(result.page_size_bytes) if scanned else "-"
+
+        table.update_cell(row_key, self._col_keys[1], status_text)
+        table.update_cell(row_key, self._col_keys[3], http_code_str)
+        table.update_cell(row_key, self._col_keys[4], time_str)
+        table.update_cell(row_key, self._col_keys[5], size_str)
+        table.update_cell(row_key, self._col_keys[6], errors_text)
+        table.update_cell(row_key, self._col_keys[7], warns_text)
+        table.update_cell(row_key, self._col_keys[8], http_404_text)
+        table.update_cell(row_key, self._col_keys[9], http_4xx_text)
+        table.update_cell(row_key, self._col_keys[10], http_5xx_text)
+        table.update_cell(row_key, self._col_keys[11], ignored_text)
 
     def _scroll_to_result(self, result: ScanResult) -> None:
         """Merkt sich die Ziel-Zeile fuer Auto-Scroll.
 
-        Die eigentliche Cursor-Bewegung passiert in _refresh_table(),
-        damit auch Spinner-Updates die Position beibehalten.
+        Bei mehreren parallelen Threads wird nur vorwaerts gescrollt,
+        damit der Cursor nicht zwischen aktiven Threads hin- und herspringt.
 
         Args:
             result: Das ScanResult zu dem gescrollt werden soll.
         """
         try:
-            self._auto_scroll_row = self._filtered.index(result)
+            row = self._filtered.index(result)
+            if row >= self._auto_scroll_row:
+                self._auto_scroll_row = row
         except ValueError:
             pass
 
-    def _apply_filter(self) -> None:
-        """Wendet den aktuellen Filter an und aktualisiert die Tabelle."""
+    def _rebuild_filtered(self) -> None:
+        """Baut die gefilterte Liste neu auf ohne Tabellen-Refresh."""
         search = self.filter_text.lower()
 
         self._filtered = []
@@ -145,11 +220,20 @@ class ResultsTable(Vertical):
                 continue
             self._filtered.append(r)
 
+    def _apply_filter(self) -> None:
+        """Wendet den aktuellen Filter an und aktualisiert die Tabelle."""
+        self._rebuild_filtered()
         self._refresh_table()
 
     def _refresh_table(self) -> None:
-        """Aktualisiert die DataTable mit gefilterten Ergebnissen."""
+        """Baut die DataTable komplett neu auf (clear + rebuild).
+
+        Wird nur bei strukturellen Aenderungen verwendet (load_results,
+        Filter-Wechsel).  Waehrend des Scannens nutzt update_result()
+        stattdessen _update_row_cells() fuer in-place Updates.
+        """
         table = self.query_one("#results-data", DataTable)
+        saved_row = table.cursor_row
         table.clear()
 
         for idx, result in enumerate(self._filtered):
@@ -193,9 +277,16 @@ class ResultsTable(Vertical):
                 key=str(idx),
             )
 
-        # Auto-Scroll: Cursor zur gemerkten Zeile bewegen
+        # Cursor wiederherstellen
         if self._auto_scroll and 0 <= self._auto_scroll_row < len(self._filtered):
-            table.move_cursor(row=self._auto_scroll_row)
+            target_row = self._auto_scroll_row
+        elif saved_row >= 0 and len(self._filtered) > 0:
+            target_row = min(saved_row, len(self._filtered) - 1)
+        else:
+            target_row = -1
+
+        if target_row >= 0:
+            table.move_cursor(row=target_row)
 
         count_label = self.query_one("#results-count", Static)
         total = len(self._results)
