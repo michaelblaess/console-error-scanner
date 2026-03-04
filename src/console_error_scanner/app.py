@@ -22,7 +22,7 @@ from . import __version__, __year__
 from .models.history import History, HistoryEntry
 from .models.settings import Settings
 from .models.scan_result import ScanResult, ScanSummary, PageStatus
-from .models.sitemap import SitemapParser, SitemapError
+from .models.sitemap import SitemapParser, SitemapError, discover_sitemap, is_sitemap_url, is_local_file
 from .models.whitelist import Whitelist
 from .services.reporter import Reporter
 from .services.scanner import Scanner
@@ -110,6 +110,9 @@ class ConsoleErrorScannerApp(App):
         self._sitemap_dots: int = 0
         self._scan_running: bool = False
         self._scan_start_time: float = 0
+        self._scan_current: int = 0
+        self._scan_total: int = 0
+        self._scan_progress_timer: Timer | None = None
         self._log_lines: list[str] = []
         self._log_height: int = LOG_HEIGHT_DEFAULT
 
@@ -199,9 +202,35 @@ class ConsoleErrorScannerApp(App):
 
     @work(exclusive=True, group="sitemap")
     async def _load_sitemap(self) -> None:
-        """Laedt die Sitemap und zeigt die URLs an."""
+        """Laedt die Sitemap und zeigt die URLs an.
+
+        Wenn die URL nicht auf .xml endet, wird automatisch versucht
+        die Sitemap via robots.txt und typische Pfade zu finden.
+        """
         self._start_sitemap_loading()
-        self._write_log(f"Lade Sitemap: {self.sitemap_url}")
+
+        # Lokale Datei: direkt laden, keine Discovery
+        if is_local_file(self.sitemap_url):
+            self._write_log(f"Lade lokale Sitemap: {self.sitemap_url}")
+        elif not is_sitemap_url(self.sitemap_url):
+            # Auto-Discovery wenn keine direkte Sitemap-URL
+            self._write_log(f"Suche Sitemap fuer: {self.sitemap_url}")
+            try:
+                self.sitemap_url = await discover_sitemap(
+                    self.sitemap_url,
+                    cookies=self.cookies,
+                    log=self._write_log,
+                )
+            except SitemapError as e:
+                self._stop_sitemap_loading()
+                self._write_log(f"[red]Sitemap-Fehler: {e}[/red]")
+                self.app.push_screen(
+                    _SitemapErrorScreen(f"Sitemap-Fehler:\n\n{e}")
+                )
+                return
+            self._write_log(f"Lade Sitemap: {self.sitemap_url}")
+        else:
+            self._write_log(f"Lade Sitemap: {self.sitemap_url}")
 
         try:
             parser = SitemapParser(self.sitemap_url, url_filter=self.url_filter, cookies=self.cookies)
@@ -259,6 +288,9 @@ class ConsoleErrorScannerApp(App):
 
         self._scan_running = True
         self._scan_start_time = time.monotonic()
+        self._scan_current = 0
+        self._scan_total = len(self._results)
+        self._scan_progress_timer = self.set_interval(0.5, self._tick_scan_progress)
 
         # Log einblenden
         log_widget = self.query_one("#scan-log", RichLog)
@@ -271,6 +303,7 @@ class ConsoleErrorScannerApp(App):
             result.status = PageStatus.PENDING
             result.http_status_code = 0
             result.load_time_ms = 0
+            result.page_size_bytes = 0
             result.errors.clear()
             result.retry_count = 0
 
@@ -333,6 +366,9 @@ class ConsoleErrorScannerApp(App):
         finally:
             self._scan_running = False
             self._scanner = None
+            if self._scan_progress_timer is not None:
+                self._scan_progress_timer.stop()
+                self._scan_progress_timer = None
 
         # Scan abgeschlossen
         duration_ms = int((time.monotonic() - self._scan_start_time) * 1000)
@@ -387,13 +423,34 @@ class ConsoleErrorScannerApp(App):
             detail.refresh()
 
     def _on_scan_progress(self, current: int, total: int) -> None:
-        """Aktualisiert den Fortschritt.
+        """Speichert den Fortschritt (Timer aktualisiert die Anzeige).
 
         Args:
             current: Aktuell abgeschlossene URLs.
             total: Gesamtanzahl URLs.
         """
-        self.sub_title = f"Scanning... {current}/{total}"
+        self._scan_current = current
+        self._scan_total = total
+
+    def _tick_scan_progress(self) -> None:
+        """Timer-Callback: Aktualisiert den Fortschrittsbalken im Header."""
+        current = self._scan_current
+        total = self._scan_total
+        bar = _format_progress_bar(current, total)
+        pct = int(current / total * 100) if total > 0 else 0
+
+        elapsed = time.monotonic() - self._scan_start_time
+        if current > 0:
+            avg_per_url = elapsed / current
+            remaining_s = avg_per_url * (total - current)
+            remaining = _format_duration(int(remaining_s * 1000))
+            self.sub_title = (
+                f"Scanning {bar} {pct}% ({current}/{total})"
+                f" · ~{remaining}"
+                f" · ⌀ {avg_per_url:.1f}s/Seite"
+            )
+        else:
+            self.sub_title = f"Scanning {bar} 0% (0/{total})"
 
     def on_results_table_result_highlighted(
         self, event: ResultsTable.ResultHighlighted
@@ -728,6 +785,26 @@ class ConsoleErrorScannerApp(App):
             self.query_one("#scan-log", RichLog).write(line)
         except Exception:
             pass
+
+
+_BAR_WIDTH = 20
+
+
+def _format_progress_bar(current: int, total: int) -> str:
+    """Erzeugt einen Unicode-Fortschrittsbalken.
+
+    Args:
+        current: Aktuell abgeschlossene Einheiten.
+        total: Gesamtanzahl Einheiten.
+
+    Returns:
+        String mit gefuellten und leeren Segmenten.
+    """
+    if total <= 0:
+        return "░" * _BAR_WIDTH
+    filled = int(_BAR_WIDTH * current / total)
+    return "━" * filled + "░" * (_BAR_WIDTH - filled)
+
 
 
 def _format_duration(duration_ms: int) -> str:

@@ -80,10 +80,10 @@ echo  ║   Setup abgeschlossen!                       ║
 echo  ╠══════════════════════════════════════════════╣
 echo  ║                                              ║
 echo  ║   Starten mit:                               ║
-echo  ║     run.bat SITEMAP_URL                      ║
+echo  ║     run.bat URL                              ║
 echo  ║                                              ║
 echo  ║   Beispiel:                                  ║
-echo  ║     run.bat https://example.com/sitemap.xml  ║
+echo  ║     run.bat https://example.com              ║
 echo  ║                                              ║
 echo  ╚══════════════════════════════════════════════╝
 echo.

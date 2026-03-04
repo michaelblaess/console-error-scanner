@@ -9,7 +9,7 @@ from textual.widgets import DataTable, Input, Static
 from textual.message import Message
 from rich.text import Text
 
-from ..models.scan_result import ScanResult, PageStatus
+from ..models.scan_result import ScanResult, PageStatus, format_page_size
 
 
 class ResultsTable(Vertical):
@@ -79,7 +79,7 @@ class ResultsTable(Vertical):
     def on_mount(self) -> None:
         """Initialisiert die Tabellenspalten und startet den Spinner-Timer."""
         table = self.query_one("#results-data", DataTable)
-        table.add_columns("#", "Status", "URL", "HTTP", "Zeit", "Errors", "Warns", "404", "4xx", "5xx", "Ignored")
+        table.add_columns("#", "Status", "URL", "HTTP", "Zeit", "Size", "Errors", "Warns", "404", "4xx", "5xx", "Ignored")
         self._spinner_timer = self.set_interval(0.3, self._tick_spinner)
 
     def _tick_spinner(self) -> None:
@@ -175,6 +175,7 @@ class ResultsTable(Vertical):
 
             http_code_str = str(result.http_status_code) if result.http_status_code > 0 else "-"
             time_str = f"{result.load_time_ms / 1000:.1f}s" if result.load_time_ms > 0 else "-"
+            size_str = format_page_size(result.page_size_bytes) if scanned else "-"
 
             table.add_row(
                 str(idx + 1),
@@ -182,6 +183,7 @@ class ResultsTable(Vertical):
                 result.url,
                 http_code_str,
                 time_str,
+                size_str,
                 errors_text,
                 warns_text,
                 http_404_text,
