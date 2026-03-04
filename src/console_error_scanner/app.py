@@ -18,6 +18,8 @@ from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import Footer, Header, RichLog
 
+from textual_themes import register_all
+
 from . import __version__, __year__
 from .models.history import History, HistoryEntry
 from .models.settings import Settings
@@ -58,7 +60,9 @@ class ConsoleErrorScannerApp(App):
         Binding("slash", "focus_filter", "Filter", key_display="/"),
         Binding("escape", "unfocus_filter", "Filter leeren", show=False),
         Binding("n", "toggle_consent", "Consent AN"),
+        Binding("g", "toggle_scroll", "Scroll AN"),
         Binding("c", "copy_log", "Log kopieren"),
+        Binding("d", "copy_details", "Details kopieren"),
         Binding("i", "show_about", "Info"),
     ]
 
@@ -66,7 +70,7 @@ class ConsoleErrorScannerApp(App):
         self,
         sitemap_url: str = "",
         concurrency: int = 8,
-        timeout: int = 30,
+        timeout: int = 60,
         output_json: str = "",
         output_html: str = "",
         headless: bool = True,
@@ -76,8 +80,12 @@ class ConsoleErrorScannerApp(App):
         cookies: list[dict[str, str]] | None = None,
         whitelist_path: str = "",
         accept_consent: bool | None = None,
+        trigger_lazy_load: bool | None = None,
     ) -> None:
         super().__init__()
+
+        # Retro-Themes registrieren (C64, Amiga, Atari ST, IBM Terminal, NeXTSTEP, BeOS)
+        register_all(self)
 
         # Persistierte Einstellungen laden
         self._settings = Settings.load()
@@ -96,6 +104,9 @@ class ConsoleErrorScannerApp(App):
 
         # Consent: CLI-Parameter hat Vorrang, sonst aus Settings
         self.accept_consent = accept_consent if accept_consent is not None else self._settings.accept_consent
+
+        # Scroll/Lazy-Load: CLI-Parameter hat Vorrang, sonst aus Settings
+        self.trigger_lazy_load = trigger_lazy_load if trigger_lazy_load is not None else self._settings.trigger_lazy_load
 
         # Theme aus Settings uebernehmen
         self.theme = self._settings.theme
@@ -135,7 +146,8 @@ class ConsoleErrorScannerApp(App):
         # Versionsinfo ins Log schreiben
         self._write_log(f"[bold]Console Error Scanner v{__version__}[/bold]")
         consent_info = "Consent: AN" if self.accept_consent else "Consent: AUS"
-        self._write_log(f"Concurrency: {self.concurrency} | Timeout: {self.timeout}s | Console-Level: {self.console_level} | {consent_info}")
+        scroll_info = "Scroll: AN" if self.trigger_lazy_load else "Scroll: AUS"
+        self._write_log(f"Concurrency: {self.concurrency} | Timeout: {self.timeout}s | Console-Level: {self.console_level} | {consent_info} | {scroll_info}")
 
         # Consent-Binding-Label aktualisieren falls --no-consent
         if not self.accept_consent:
@@ -144,6 +156,17 @@ class ConsoleErrorScannerApp(App):
                 if binding.action == "toggle_consent":
                     self._bindings.key_to_bindings["n"][i] = dataclasses.replace(
                         binding, description="Consent AUS"
+                    )
+                    break
+            self.refresh_bindings()
+
+        # Scroll-Binding-Label aktualisieren falls --no-scroll
+        if not self.trigger_lazy_load:
+            bindings_list = self._bindings.key_to_bindings.get("g", [])
+            for i, binding in enumerate(bindings_list):
+                if binding.action == "toggle_scroll":
+                    self._bindings.key_to_bindings["g"][i] = dataclasses.replace(
+                        binding, description="Scroll AUS"
                     )
                     break
             self.refresh_bindings()
@@ -322,6 +345,7 @@ class ConsoleErrorScannerApp(App):
                 cookies=list(self.cookies),
                 whitelist_path=self.whitelist_path,
                 accept_consent=self.accept_consent,
+                trigger_lazy_load=self.trigger_lazy_load,
             )
             History.add(history_entry)
             self._write_log("[dim]History aktualisiert[/dim]")
@@ -336,6 +360,7 @@ class ConsoleErrorScannerApp(App):
             user_agent=self.user_agent,
             cookies=self.cookies,
             accept_consent=self.accept_consent,
+            trigger_lazy_load=self.trigger_lazy_load,
         )
 
         # Async Worker laeuft im Textual-Event-Loop,
@@ -521,6 +546,22 @@ class ConsoleErrorScannerApp(App):
         self.copy_to_clipboard(text)
         self.notify(f"Log kopiert ({len(self._log_lines)} Zeilen)")
 
+    def action_copy_details(self) -> None:
+        """Kopiert die Detail-Ansicht (rechter Bereich) in die Zwischenablage."""
+        detail = self.query_one("#error-detail", ErrorDetailView)
+        if detail._result is None:
+            self.notify("Keine URL ausgewaehlt.", severity="warning")
+            return
+
+        rendered = detail.render()
+        if isinstance(rendered, Text):
+            plain = rendered.plain
+        else:
+            plain = str(rendered)
+
+        self.copy_to_clipboard(plain)
+        self.notify("Details kopiert")
+
     def action_show_top_errors(self) -> None:
         """Zeigt den Top-10-Fehler Dialog."""
         if not self._results:
@@ -603,6 +644,7 @@ class ConsoleErrorScannerApp(App):
         self.user_agent = entry.user_agent
         self.cookies = list(entry.cookies)
         self.accept_consent = entry.accept_consent
+        self.trigger_lazy_load = entry.trigger_lazy_load
 
         # Consent-Binding-Label aktualisieren
         consent_label = "Consent AN" if self.accept_consent else "Consent AUS"
@@ -611,6 +653,16 @@ class ConsoleErrorScannerApp(App):
             if binding.action == "toggle_consent":
                 self._bindings.key_to_bindings["n"][i] = dataclasses.replace(
                     binding, description=consent_label
+                )
+                break
+
+        # Scroll-Binding-Label aktualisieren
+        scroll_label = "Scroll AN" if self.trigger_lazy_load else "Scroll AUS"
+        bindings_list = self._bindings.key_to_bindings.get("g", [])
+        for i, binding in enumerate(bindings_list):
+            if binding.action == "toggle_scroll":
+                self._bindings.key_to_bindings["g"][i] = dataclasses.replace(
+                    binding, description=scroll_label
                 )
                 break
 
@@ -634,7 +686,8 @@ class ConsoleErrorScannerApp(App):
         self._write_log(f"[bold]History: Parameter uebernommen[/bold]")
         self._write_log(f"Sitemap: {self.sitemap_url}")
         consent_info = "Consent: AN" if self.accept_consent else "Consent: AUS"
-        self._write_log(f"Concurrency: {self.concurrency} | Timeout: {self.timeout}s | Console-Level: {self.console_level} | {consent_info}")
+        scroll_info = "Scroll: AN" if self.trigger_lazy_load else "Scroll: AUS"
+        self._write_log(f"Concurrency: {self.concurrency} | Timeout: {self.timeout}s | Console-Level: {self.console_level} | {consent_info} | {scroll_info}")
         if self.cookies:
             cookie_info = ", ".join(c.get("name", "?") for c in self.cookies)
             self._write_log(f"Cookies: {cookie_info}")
@@ -741,6 +794,31 @@ class ConsoleErrorScannerApp(App):
 
         self.refresh_bindings()
 
+    def action_toggle_scroll(self) -> None:
+        """Schaltet das Lazy-Loading-Scrollen um (AN/AUS)."""
+        self.trigger_lazy_load = not self.trigger_lazy_load
+
+        if self.trigger_lazy_load:
+            self._write_log("[green]Lazy-Loading-Scroll aktiviert[/green]")
+        else:
+            self._write_log("[yellow]Lazy-Loading-Scroll deaktiviert[/yellow]")
+
+        # Binding-Label aktualisieren
+        label = "Scroll AN" if self.trigger_lazy_load else "Scroll AUS"
+        bindings_list = self._bindings.key_to_bindings.get("g", [])
+        for i, binding in enumerate(bindings_list):
+            if binding.action == "toggle_scroll":
+                self._bindings.key_to_bindings["g"][i] = dataclasses.replace(
+                    binding, description=label
+                )
+                break
+
+        # Einstellung persistent speichern
+        self._settings.trigger_lazy_load = self.trigger_lazy_load
+        self._settings.save()
+
+        self.refresh_bindings()
+
     async def action_quit(self) -> None:
         """Beendet die App und raeumt den Scanner sauber auf."""
         if self._scanner:
@@ -803,7 +881,7 @@ def _format_progress_bar(current: int, total: int) -> str:
     if total <= 0:
         return "░" * _BAR_WIDTH
     filled = int(_BAR_WIDTH * current / total)
-    return "━" * filled + "░" * (_BAR_WIDTH - filled)
+    return "█" * filled + "░" * (_BAR_WIDTH - filled)
 
 
 
