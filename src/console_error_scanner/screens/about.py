@@ -11,6 +11,7 @@ from textual.widget import Widget
 from textual.widgets import Static
 
 from .. import __author__, __version__, __year__
+from ..i18n import t
 
 
 class AboutContent(Widget):
@@ -33,21 +34,15 @@ class AboutContent(Widget):
         text.append(__year__, style="bold")
         text.append("\n\n")
 
-        text.append("Scannt Websites auf JavaScript Console-Errors\n")
-        text.append("und HTTP-Fehler (404, 5xx).\n\n")
-        text.append("Eingabe: Sitemap-URL (XML)\n")
-        text.append("Ausgabe: TUI + HTML/JSON Reports\n\n")
+        text.append(f"{t('about.description_1')}\n")
+        text.append(f"{t('about.description_2')}\n\n")
+        text.append(f"{t('about.input')}\n")
+        text.append(f"{t('about.output')}\n\n")
 
         text.append("\u2500" * 44 + "\n\n", style="dim")
 
-        text.append(
-            "\u201eDunkelheit kann Dunkelheit nicht\n"
-            "vertreiben, nur Licht kann das.\n"
-            "Hass kann Hass nicht vertreiben,\n"
-            "nur Liebe kann das.\u201c\n\n",
-            style="italic",
-        )
-        text.append("  \u2014 Martin Luther King Jr.", style="bold")
+        text.append(f"{t('about.quote')}\n\n", style="italic")
+        text.append(f"  \u2014 {t('about.quote_author')}", style="bold")
 
         return text
 
@@ -86,16 +81,16 @@ class AboutScreen(ModalScreen):
     """
 
     BINDINGS = [
-        Binding("escape", "close", "Schliessen"),
-        Binding("q", "close", "Schliessen"),
+        Binding("escape", "close", "Close"),
+        Binding("q", "close", "Close"),
     ]
 
     def compose(self) -> ComposeResult:
         """Erstellt das Modal-Layout."""
         with VerticalScroll():
-            yield Static("Console Error Scanner", id="about-title")
+            yield Static(t("about.title"), id="about-title")
             yield AboutContent()
-            yield Static("ESC = Schliessen", id="about-footer")
+            yield Static(t("about.footer"), id="about-footer")
 
     def action_close(self) -> None:
         """Schliesst den Dialog."""

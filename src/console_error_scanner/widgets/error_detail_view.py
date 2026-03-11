@@ -8,6 +8,7 @@ from rich.text import Text
 from textual.app import RenderResult
 from textual.widget import Widget
 
+from ..i18n import t
 from ..models.scan_result import ErrorType, ScanResult, PageStatus, format_page_size
 
 
@@ -38,19 +39,19 @@ class ErrorDetailView(Widget):
     def render(self) -> RenderResult:
         """Rendert die Fehlerdetails."""
         if not self._result:
-            return Text("Keine URL ausgewaehlt.\n\nWaehle eine URL in der Tabelle aus.", style="dim italic")
+            return Text(t("detail.no_url"), style="dim italic")
 
         result = self._result
         text = Text(overflow="fold")
 
         # URL-Header (mit OSC 8 Link fuer CTRL+Click im Terminal)
-        text.append("URL\n", style="bold underline")
+        text.append(f"{t('detail.url_header')}\n", style="bold underline")
         safe_url = _sanitize_url_for_link(result.url)
         text.append(result.url, style=f"bold cyan link {safe_url}")
         text.append("\n\n")
 
         # Status-Zeile
-        text.append("Status: ", style="bold")
+        text.append(t("detail.status"), style="bold")
         status_style = {
             PageStatus.OK: "bold green",
             PageStatus.WARNING: "bold yellow",
@@ -72,21 +73,22 @@ class ErrorDetailView(Widget):
             text.append(f"  |  {format_page_size(result.page_size_bytes)}")
 
         if result.retry_count > 0:
-            text.append(f"  |  {result.retry_count} Retries", style="yellow")
+            text.append(f"  |  {t('detail.retries', count=result.retry_count)}", style="yellow")
 
         text.append("\n")
 
         # Fehler-Zusammenfassung
         if result.has_errors or result.ignored_count > 0:
-            summary_parts = (
-                f"Fehler: {result.console_error_count} Errors, "
-                f"{result.console_warning_count} Warns, "
-                f"{result.http_404_count} 404, "
-                f"{result.http_4xx_count} 4xx, "
-                f"{result.http_5xx_count} 5xx"
+            summary_parts = t(
+                "detail.error_summary",
+                errors=result.console_error_count,
+                warns=result.console_warning_count,
+                http_404=result.http_404_count,
+                http_4xx=result.http_4xx_count,
+                http_5xx=result.http_5xx_count,
             )
             if result.ignored_count > 0:
-                summary_parts += f", {result.ignored_count} ignored"
+                summary_parts += t("detail.ignored_suffix", count=result.ignored_count)
             text.append(f"{summary_parts}\n", style="bold")
 
         text.append("\n")
@@ -94,11 +96,11 @@ class ErrorDetailView(Widget):
         # Keine Fehler?
         if not result.errors:
             if result.status == PageStatus.OK:
-                text.append("Keine Fehler gefunden.", style="green")
+                text.append(t("detail.no_errors"), style="green")
             elif result.status == PageStatus.SCANNING:
-                text.append("Scan laeuft...", style="cyan")
+                text.append(t("detail.scanning"), style="cyan")
             elif result.status == PageStatus.PENDING:
-                text.append("Noch nicht gescannt.", style="dim")
+                text.append(t("detail.not_scanned"), style="dim")
             return text
 
         # Nur aktive (nicht-whitelisted) Fehler in den Sektionen anzeigen
@@ -107,7 +109,7 @@ class ErrorDetailView(Widget):
         # Console Errors
         console_errors = [e for e in active_errors if e.error_type == ErrorType.CONSOLE_ERROR]
         if console_errors:
-            text.append(f"Console Errors ({len(console_errors)})\n", style="bold red underline")
+            text.append(f"{t('detail.console_errors', count=len(console_errors))}\n", style="bold red underline")
             text.append("\n")
 
             for idx, error in enumerate(console_errors, 1):
@@ -121,7 +123,7 @@ class ErrorDetailView(Widget):
             if e.error_type == ErrorType.CONSOLE_WARNING and not e.message.startswith("CSP violation:")
         ]
         if console_warnings:
-            text.append(f"Console Warnings ({len(console_warnings)})\n", style="bold yellow underline")
+            text.append(f"{t('detail.console_warnings', count=len(console_warnings))}\n", style="bold yellow underline")
             text.append("\n")
 
             for idx, error in enumerate(console_warnings, 1):
@@ -135,7 +137,7 @@ class ErrorDetailView(Widget):
             if e.error_type == ErrorType.CONSOLE_WARNING and e.message.startswith("CSP violation:")
         ]
         if csp_violations:
-            text.append(f"CSP Violations ({len(csp_violations)})\n", style="bold magenta underline")
+            text.append(f"{t('detail.csp_violations', count=len(csp_violations))}\n", style="bold magenta underline")
             text.append("\n")
 
             for idx, error in enumerate(csp_violations, 1):
@@ -149,7 +151,7 @@ class ErrorDetailView(Widget):
         # HTTP 404
         http_404 = [e for e in active_errors if e.error_type == ErrorType.HTTP_404]
         if http_404:
-            text.append(f"HTTP 404 ({len(http_404)})\n", style="bold yellow underline")
+            text.append(f"{t('detail.http_404', count=len(http_404))}\n", style="bold yellow underline")
             text.append("\n")
 
             for idx, error in enumerate(http_404, 1):
@@ -162,7 +164,7 @@ class ErrorDetailView(Widget):
         # HTTP 4xx (ohne 404)
         http_4xx = [e for e in active_errors if e.error_type == ErrorType.HTTP_4XX]
         if http_4xx:
-            text.append(f"HTTP 4xx ({len(http_4xx)})\n", style="bold yellow underline")
+            text.append(f"{t('detail.http_4xx', count=len(http_4xx))}\n", style="bold yellow underline")
             text.append("\n")
 
             for idx, error in enumerate(http_4xx, 1):
@@ -173,7 +175,7 @@ class ErrorDetailView(Widget):
         # HTTP 5xx
         http_5xx = [e for e in active_errors if e.error_type == ErrorType.HTTP_5XX]
         if http_5xx:
-            text.append(f"HTTP 5xx ({len(http_5xx)})\n", style="bold red underline")
+            text.append(f"{t('detail.http_5xx', count=len(http_5xx))}\n", style="bold red underline")
             text.append("\n")
 
             for idx, error in enumerate(http_5xx, 1):
@@ -184,7 +186,7 @@ class ErrorDetailView(Widget):
         # Whitelist-Treffer (gedimmt, am Ende)
         whitelisted = [e for e in result.errors if e.whitelisted]
         if whitelisted:
-            text.append(f"Whitelist-Treffer ({len(whitelisted)})\n", style="dim underline")
+            text.append(f"{t('detail.whitelist_hits', count=len(whitelisted))}\n", style="dim underline")
             text.append("\n")
 
             type_labels = {
@@ -248,7 +250,7 @@ def _append_error_message(text: Text, error) -> None:
         text: Rich Text zum Anhaengen.
         error: PageError mit message und source.
     """
-    msg_lines = error.message.split("\n") if error.message else ["(kein Text)"]
+    msg_lines = error.message.split("\n") if error.message else [t("detail.no_text")]
 
     # Erste Zeile: eigentliche Fehlermeldung (fett)
     first_line = msg_lines[0]
@@ -261,11 +263,11 @@ def _append_error_message(text: Text, error) -> None:
         shortened = _shorten_stack_line(extra_line)
         text.append(f"       {shortened}\n", style="dim")
     if len(msg_lines) > 4:
-        text.append(f"       ... ({len(msg_lines) - 4} weitere Zeilen)\n", style="dim")
+        text.append(f"       {t('detail.more_lines', count=len(msg_lines) - 4)}\n", style="dim")
 
     # Quelle (volle URL mit OSC 8 Link)
     if error.source:
-        text.append("     Quelle: ", style="dim cyan")
+        text.append(t("detail.source"), style="dim cyan")
         safe_source = _sanitize_url_for_link(error.source)
         source_suffix = f":{error.line_number}" if error.line_number else ""
         text.append(

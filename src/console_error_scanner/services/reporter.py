@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from ..i18n import t
 from ..models.scan_result import ScanResult, ScanSummary
 
 
@@ -116,7 +117,7 @@ class Reporter:
 
                 ignored_details = (
                     f"<div class='ignored-section'>"
-                    f"<p class='ignored-header'>Whitelist-Treffer ({len(ignored_errors)})</p>"
+                    f"<p class='ignored-header'>{t('report.whitelist_hits', count=len(ignored_errors))}</p>"
                     f"<ul class='error-list ignored-list'>{''.join(ignored_items)}</ul>"
                     f"</div>"
                 )
@@ -194,20 +195,20 @@ class Reporter:
     </style>
 </head>
 <body>
-    <h1>Console Error Scanner Report</h1>
-    <p class="timestamp">Erstellt: {timestamp} | Sitemap: {_html_escape(summary.sitemap_url)}</p>
+    <h1>{t('report.title')}</h1>
+    <p class="timestamp">{t('report.created', timestamp=timestamp, url=_html_escape(summary.sitemap_url))}</p>
 
     <div class="summary">
         <div class="summary-card">
-            <div class="label">URLs gesamt</div>
+            <div class="label">{t('report.urls_total')}</div>
             <div class="value">{summary.total_urls}</div>
         </div>
         <div class="summary-card">
-            <div class="label">Gescannt</div>
+            <div class="label">{t('report.scanned')}</div>
             <div class="value ok">{summary.scanned_urls}</div>
         </div>
         <div class="summary-card">
-            <div class="label">Mit Fehlern</div>
+            <div class="label">{t('report.with_errors')}</div>
             <div class="value {"error" if summary.urls_with_errors > 0 else "ok"}">{summary.urls_with_errors}</div>
         </div>
         <div class="summary-card">
@@ -235,7 +236,7 @@ class Reporter:
             <div class="value ignored">{summary.total_ignored}</div>
         </div>
         <div class="summary-card">
-            <div class="label">Dauer</div>
+            <div class="label">{t('report.duration')}</div>
             <div class="value">{duration_s:.1f}s</div>
         </div>
     </div>
@@ -247,7 +248,7 @@ class Reporter:
                 <th>Status</th>
                 <th>URL</th>
                 <th>HTTP</th>
-                <th>Ladezeit</th>
+                <th>{t('report.load_time')}</th>
                 <th>Console</th>
                 <th>404</th>
                 <th>4xx</th>

@@ -26,6 +26,7 @@ class Settings:
     theme: str = "textual-dark"
     accept_consent: bool = True
     trigger_lazy_load: bool = True
+    language: str = "de"
 
     SETTINGS_DIR = Path.home() / ".console-error-scanner"
     SETTINGS_FILE = SETTINGS_DIR / "settings.json"
@@ -40,6 +41,7 @@ class Settings:
             "theme": self.theme,
             "accept_consent": self.accept_consent,
             "trigger_lazy_load": self.trigger_lazy_load,
+            "language": self.language,
         }
 
     @staticmethod
@@ -63,6 +65,7 @@ class Settings:
                 theme=data.get("theme", "textual-dark"),
                 accept_consent=data.get("accept_consent", True),
                 trigger_lazy_load=data.get("trigger_lazy_load", True),
+                language=data.get("language", "de"),
             )
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)
