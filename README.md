@@ -66,6 +66,9 @@ console-error-scanner https://www.example.com/sitemap.xml
 # Mit mehr parallelen Tabs (Standard: 8)
 console-error-scanner https://www.example.com --concurrency 12
 
+# Englische Oberflaeche
+console-error-scanner https://www.example.com --lang en
+
 # Nur bestimmte URLs scannen
 console-error-scanner https://www.example.com --filter /produkte
 
@@ -103,6 +106,7 @@ console-error-scanner https://www.example.com --no-headless
 | `--timeout` | `-t` | 60 | Timeout pro Seite in Sekunden |
 | `--output-json` | | | JSON-Report automatisch speichern |
 | `--output-html` | | | HTML-Report automatisch speichern |
+| `--lang` | | de | Sprache der Oberflaeche (de, en) |
 | `--no-headless` | | false | Browser sichtbar starten |
 | `--filter` | `-f` | | Nur URLs scannen die TEXT enthalten |
 | `--console-level` | | warn | error, warn, all |
@@ -129,7 +133,8 @@ console-error-scanner https://www.example.com --no-headless
 - **Whitelist**: Bekannte Fehler per Wildcard-Pattern ignorieren (z.B. attachShadow, AppInsights)
 - **Live-Updates**: Ergebnisse erscheinen sofort waehrend des Scans in der Tabelle
 - **Auto-Scroll**: Tabelle scrollt automatisch zur aktuell gescannten URL mit
-- **Settings-Persistenz**: Theme, Consent-Modus und Scroll-Modus werden gespeichert
+- **Mehrsprachig**: Deutsch und Englisch (`--lang en`), alle UI-Texte ueber JSON-Sprachdateien
+- **Settings-Persistenz**: Theme, Consent-Modus, Scroll-Modus und Sprache werden gespeichert
 - **Scan-History**: Vorherige Scans koennen per `h`-Taste wiederhergestellt werden
 
 ## Tastenkuerzel in der TUI
@@ -282,6 +287,10 @@ src/console_error_scanner/
     history.py          Scan-History Persistenz
     settings.py         Settings Persistenz (Theme, Consent, Scroll)
     whitelist.py        Whitelist (Wildcard-Pattern Matching)
+  i18n.py               Internationalisierung (t()-Funktion)
+  locale/
+    de.json             Deutsche Sprachdatei
+    en.json             Englische Sprachdatei
   widgets/
     results_table.py    DataTable mit Filter + Auto-Scroll
     error_detail_view.py  Detail-Ansicht rechts

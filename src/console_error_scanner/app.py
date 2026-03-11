@@ -21,6 +21,7 @@ from textual.widgets import Footer, Header, RichLog
 from textual_themes import register_all
 
 from . import __version__, __year__
+from .i18n import t
 from .models.history import History, HistoryEntry
 from .models.settings import Settings
 from .models.scan_result import ScanResult, ScanSummary, PageStatus
@@ -46,26 +47,6 @@ class ConsoleErrorScannerApp(App):
     CSS_PATH = "app.tcss"
     TITLE = f"Console Error Scanner v{__version__} ({__year__})"
 
-    BINDINGS = [
-        Binding("q", "quit", "Beenden"),
-        Binding("s", "start_scan", "Scan"),
-        Binding("h", "show_history", "History"),
-        Binding("r", "save_reports", "Report"),
-        Binding("t", "show_top_errors", "Top 10"),
-        Binding("w", "toggle_whitelist", "Whitelist AN"),
-        Binding("l", "toggle_log", "Log"),
-        Binding("e", "toggle_errors", "Nur Fehler"),
-        Binding("plus", "log_bigger", "Log +", key_display="+"),
-        Binding("minus", "log_smaller", "Log -", key_display="-"),
-        Binding("slash", "focus_filter", "Filter", key_display="/"),
-        Binding("escape", "unfocus_filter", "Filter leeren", show=False),
-        Binding("n", "toggle_consent", "Consent AN"),
-        Binding("g", "toggle_scroll", "Scroll AN"),
-        Binding("c", "copy_log", "Log kopieren"),
-        Binding("d", "copy_details", "Details kopieren"),
-        Binding("i", "show_about", "Info"),
-    ]
-
     def __init__(
         self,
         sitemap_url: str = "",
@@ -83,6 +64,25 @@ class ConsoleErrorScannerApp(App):
         trigger_lazy_load: bool | None = None,
     ) -> None:
         super().__init__()
+
+        # Bindings mit uebersetzten Labels
+        self._bindings.bind("q", "quit", t("binding.quit"))
+        self._bindings.bind("s", "start_scan", t("binding.scan"))
+        self._bindings.bind("h", "show_history", t("binding.history"))
+        self._bindings.bind("r", "save_reports", t("binding.report"))
+        self._bindings.bind("t", "show_top_errors", t("binding.top_errors"))
+        self._bindings.bind("w", "toggle_whitelist", t("binding.whitelist_on"))
+        self._bindings.bind("l", "toggle_log", t("binding.log"))
+        self._bindings.bind("e", "toggle_errors", t("binding.errors_only"))
+        self._bindings.bind("plus", "log_bigger", t("binding.log_bigger"), key_display="+")
+        self._bindings.bind("minus", "log_smaller", t("binding.log_smaller"), key_display="-")
+        self._bindings.bind("slash", "focus_filter", t("binding.filter"), key_display="/")
+        self._bindings.bind("escape", "unfocus_filter", t("binding.clear_filter"), show=False)
+        self._bindings.bind("n", "toggle_consent", t("binding.consent_on"))
+        self._bindings.bind("g", "toggle_scroll", t("binding.scroll_on"))
+        self._bindings.bind("c", "copy_log", t("binding.copy_log"))
+        self._bindings.bind("d", "copy_details", t("binding.copy_details"))
+        self._bindings.bind("i", "show_about", t("binding.info"))
 
         # Retro-Themes registrieren (C64, Amiga, Atari ST, IBM Terminal, NeXTSTEP, BeOS)
         register_all(self)
@@ -144,10 +144,10 @@ class ConsoleErrorScannerApp(App):
     def on_mount(self) -> None:
         """Initialisierung nach dem Starten."""
         # Versionsinfo ins Log schreiben
-        self._write_log(f"[bold]Console Error Scanner v{__version__}[/bold]")
-        consent_info = "Consent: AN" if self.accept_consent else "Consent: AUS"
-        scroll_info = "Scroll: AN" if self.trigger_lazy_load else "Scroll: AUS"
-        self._write_log(f"Concurrency: {self.concurrency} | Timeout: {self.timeout}s | Console-Level: {self.console_level} | {consent_info} | {scroll_info}")
+        self._write_log(f"[bold]{t('log.version', version=__version__)}[/bold]")
+        consent_info = t("log.consent_on") if self.accept_consent else t("log.consent_off")
+        scroll_info = t("log.scroll_on") if self.trigger_lazy_load else t("log.scroll_off")
+        self._write_log(t("log.config", concurrency=self.concurrency, timeout=self.timeout, level=self.console_level, consent=consent_info, scroll=scroll_info))
 
         # Consent-Binding-Label aktualisieren falls --no-consent
         if not self.accept_consent:
@@ -155,7 +155,7 @@ class ConsoleErrorScannerApp(App):
             for i, binding in enumerate(bindings_list):
                 if binding.action == "toggle_consent":
                     self._bindings.key_to_bindings["n"][i] = dataclasses.replace(
-                        binding, description="Consent AUS"
+                        binding, description=t("binding.consent_off")
                     )
                     break
             self.refresh_bindings()
@@ -166,7 +166,7 @@ class ConsoleErrorScannerApp(App):
             for i, binding in enumerate(bindings_list):
                 if binding.action == "toggle_scroll":
                     self._bindings.key_to_bindings["g"][i] = dataclasses.replace(
-                        binding, description="Scroll AUS"
+                        binding, description=t("binding.scroll_off")
                     )
                     break
             self.refresh_bindings()
@@ -181,11 +181,11 @@ class ConsoleErrorScannerApp(App):
             try:
                 self._whitelist = Whitelist.load(self.whitelist_path)
                 self._whitelist_active = True
-                self._write_log(f"[green]Whitelist geladen: {len(self._whitelist)} Patterns aus {self.whitelist_path}[/green]")
+                self._write_log(f"[green]{t('log.whitelist_loaded', count=len(self._whitelist), path=self.whitelist_path)}[/green]")
                 for pattern in self._whitelist.patterns:
                     self._write_log(f"[dim]  - {pattern}[/dim]")
             except Exception as e:
-                self._write_log(f"[red]Whitelist-Fehler: {e}[/red]")
+                self._write_log(f"[red]{t('log.whitelist_error', error=e)}[/red]")
                 self._whitelist = None
                 self._whitelist_active = False
 
@@ -204,7 +204,7 @@ class ConsoleErrorScannerApp(App):
         """Startet die Lade-Animation fuer die Sitemap."""
         self._sitemap_loading = True
         self._sitemap_dots = 0
-        self.sub_title = "Lade Sitemap..."
+        self.sub_title = t("subtitle.loading_sitemap")
         self.refresh_bindings()
         self._sitemap_timer = self.set_interval(0.5, self._tick_sitemap_loading)
 
@@ -212,7 +212,7 @@ class ConsoleErrorScannerApp(App):
         """Timer-Callback: Schreibt Fortschrittspunkte ins Log."""
         self._sitemap_dots += 1
         dots = "." * self._sitemap_dots
-        self.sub_title = f"Lade Sitemap{dots}"
+        self.sub_title = t("subtitle.loading_sitemap_dots", dots=dots)
 
     def _stop_sitemap_loading(self) -> None:
         """Stoppt die Lade-Animation."""
@@ -234,10 +234,10 @@ class ConsoleErrorScannerApp(App):
 
         # Lokale Datei: direkt laden, keine Discovery
         if is_local_file(self.sitemap_url):
-            self._write_log(f"Lade lokale Sitemap: {self.sitemap_url}")
+            self._write_log(t("log.loading_local_sitemap", url=self.sitemap_url))
         elif not is_sitemap_url(self.sitemap_url):
             # Auto-Discovery wenn keine direkte Sitemap-URL
-            self._write_log(f"Suche Sitemap fuer: {self.sitemap_url}")
+            self._write_log(t("log.searching_sitemap", url=self.sitemap_url))
             try:
                 self.sitemap_url = await discover_sitemap(
                     self.sitemap_url,
@@ -246,41 +246,41 @@ class ConsoleErrorScannerApp(App):
                 )
             except SitemapError as e:
                 self._stop_sitemap_loading()
-                self._write_log(f"[red]Sitemap-Fehler: {e}[/red]")
+                self._write_log(f"[red]{t('log.sitemap_error', error=e)}[/red]")
                 self.app.push_screen(
-                    _SitemapErrorScreen(f"Sitemap-Fehler:\n\n{e}")
+                    _SitemapErrorScreen(t("sitemap_error.sitemap_error", error=e))
                 )
                 return
-            self._write_log(f"Lade Sitemap: {self.sitemap_url}")
+            self._write_log(t("log.loading_sitemap_url", url=self.sitemap_url))
         else:
-            self._write_log(f"Lade Sitemap: {self.sitemap_url}")
+            self._write_log(t("log.loading_sitemap_url", url=self.sitemap_url))
 
         try:
             parser = SitemapParser(self.sitemap_url, url_filter=self.url_filter, cookies=self.cookies)
             self._urls = await parser.parse()
         except SitemapError as e:
             self._stop_sitemap_loading()
-            self._write_log(f"[red]Sitemap-Fehler: {e}[/red]")
+            self._write_log(f"[red]{t('log.sitemap_error', error=e)}[/red]")
             self.app.push_screen(
-                _SitemapErrorScreen(f"Sitemap-Fehler:\n\n{e}")
+                _SitemapErrorScreen(t("sitemap_error.sitemap_error", error=e))
             )
             return
         except Exception as e:
             self._stop_sitemap_loading()
-            self._write_log(f"[red]Unerwarteter Fehler: {e}[/red]")
+            self._write_log(f"[red]{t('log.unexpected_error', error=e)}[/red]")
             self.app.push_screen(
-                _SitemapErrorScreen(f"Unerwarteter Fehler:\n\n{e}")
+                _SitemapErrorScreen(t("sitemap_error.unexpected_error", error=e))
             )
             return
 
         self._stop_sitemap_loading()
 
         if not self._urls:
-            self._write_log("[yellow]Keine URLs in der Sitemap gefunden.[/yellow]")
-            self.notify("Keine URLs gefunden!", severity="warning")
+            self._write_log(f"[yellow]{t('log.no_urls_in_sitemap')}[/yellow]")
+            self.notify(t("notify.no_urls"), severity="warning")
             return
 
-        self._write_log(f"[green]{len(self._urls)} URLs geladen[/green]")
+        self._write_log(f"[green]{t('log.urls_loaded', count=len(self._urls))}[/green]")
 
         # Ergebnisse initialisieren
         self._results = [ScanResult(url=url) for url in self._urls]
@@ -292,7 +292,7 @@ class ConsoleErrorScannerApp(App):
         table = self.query_one("#results-table", ResultsTable)
         table.load_results(self._results)
 
-        self.sub_title = f"{len(self._urls)} URLs"
+        self.sub_title = t("subtitle.urls_count", count=len(self._urls))
 
         # Auto-Scan starten wenn CLI-Reports angefordert
         if self.output_json or self.output_html:
@@ -302,11 +302,11 @@ class ConsoleErrorScannerApp(App):
     async def action_start_scan(self) -> None:
         """Startet den Scan aller URLs."""
         if self._scan_running:
-            self.notify("Scan laeuft bereits!", severity="warning")
+            self.notify(t("notify.scan_running"), severity="warning")
             return
 
         if not self._urls:
-            self.notify("Keine URLs geladen! Bitte zuerst eine Sitemap laden.", severity="error")
+            self.notify(t("notify.no_urls_loaded"), severity="error")
             return
 
         self._scan_running = True
@@ -348,7 +348,7 @@ class ConsoleErrorScannerApp(App):
                 trigger_lazy_load=self.trigger_lazy_load,
             )
             History.add(history_entry)
-            self._write_log("[dim]History aktualisiert[/dim]")
+            self._write_log(f"[dim]{t('log.history_updated')}[/dim]")
         except Exception:
             pass
 
@@ -386,8 +386,8 @@ class ConsoleErrorScannerApp(App):
                 on_progress=on_progress,
             )
         except Exception as e:
-            self._write_log(f"[red]Scan-Fehler: {e}[/red]")
-            self.notify(f"Scan-Fehler: {e}", severity="error")
+            self._write_log(f"[red]{t('log.sitemap_error', error=e)}[/red]")
+            self.notify(t("notify.scan_error", error=e), severity="error")
         finally:
             self._scan_running = False
             self._scanner = None
@@ -399,18 +399,19 @@ class ConsoleErrorScannerApp(App):
         duration_ms = int((time.monotonic() - self._scan_start_time) * 1000)
         summary_data = ScanSummary.from_results(self.sitemap_url, self._results, duration_ms)
 
-        self._write_log(f"\n[bold green]Scan abgeschlossen in {_format_duration(duration_ms)}[/bold green]")
+        self._write_log(f"\n[bold green]{t('log.scan_complete', duration=_format_duration(duration_ms))}[/bold green]")
         ignored_info = f" | Ignored: {summary_data.total_ignored}" if summary_data.total_ignored > 0 else ""
-        self._write_log(
-            f"Ergebnis: {summary_data.urls_with_errors} Seiten mit Fehlern | "
-            f"Console: {summary_data.total_console_errors} | "
-            f"404: {summary_data.total_http_404} | "
-            f"4xx: {summary_data.total_http_4xx} | "
-            f"5xx: {summary_data.total_http_5xx}"
-            f"{ignored_info}"
-        )
+        self._write_log(t(
+            "log.scan_result",
+            errors_pages=summary_data.urls_with_errors,
+            console=summary_data.total_console_errors,
+            http_404=summary_data.total_http_404,
+            http_4xx=summary_data.total_http_4xx,
+            http_5xx=summary_data.total_http_5xx,
+            ignored=ignored_info,
+        ))
         if summary_data.total_ignored > 0:
-            self._write_log(f"[dim]{summary_data.total_ignored} Fehler per Whitelist unterdrueckt[/dim]")
+            self._write_log(f"[dim]{t('log.whitelist_suppressed', count=summary_data.total_ignored)}[/dim]")
 
         # Tabelle final aktualisieren
         table = self.query_one("#results-table", ResultsTable)
@@ -420,7 +421,7 @@ class ConsoleErrorScannerApp(App):
         summary = self.query_one("#summary", SummaryPanel)
         summary.update_from_results(self._results)
 
-        self.sub_title = f"{len(self._urls)} URLs - Scan abgeschlossen"
+        self.sub_title = t("subtitle.scan_complete", count=len(self._urls))
 
         # Auto-Reports speichern (CLI-Parameter)
         if self.output_json or self.output_html:
@@ -469,13 +470,13 @@ class ConsoleErrorScannerApp(App):
             avg_per_url = elapsed / current
             remaining_s = avg_per_url * (total - current)
             remaining = _format_duration(int(remaining_s * 1000))
-            self.sub_title = (
-                f"Scanning {bar} {pct}% ({current}/{total})"
-                f" · ~{remaining}"
-                f" · ⌀ {avg_per_url:.1f}s/Seite"
+            self.sub_title = t(
+                "subtitle.scanning",
+                bar=bar, pct=pct, current=current, total=total,
+                remaining=remaining, avg=f"{avg_per_url:.1f}",
             )
         else:
-            self.sub_title = f"Scanning {bar} 0% (0/{total})"
+            self.sub_title = t("subtitle.scanning_start", bar=bar, total=total)
 
     def on_results_table_result_highlighted(
         self, event: ResultsTable.ResultHighlighted
@@ -494,13 +495,13 @@ class ConsoleErrorScannerApp(App):
     def action_save_reports(self) -> None:
         """Speichert HTML- und JSON-Reports."""
         if not self._results:
-            self.notify("Keine Ergebnisse vorhanden!", severity="warning")
+            self.notify(t("notify.no_results"), severity="warning")
             return
 
         # Nur gescannte Ergebnisse pruefen
         scanned = [r for r in self._results if r.status not in (PageStatus.PENDING, PageStatus.SCANNING)]
         if not scanned:
-            self.notify("Noch keine Seiten gescannt!", severity="warning")
+            self.notify(t("notify.not_scanned"), severity="warning")
             return
 
         duration_ms = int((time.monotonic() - self._scan_start_time) * 1000) if self._scan_start_time > 0 else 0
@@ -513,14 +514,14 @@ class ConsoleErrorScannerApp(App):
         # JSON
         json_path = f"{base_name}.json"
         saved_json = Reporter.save_json(self._results, summary, json_path)
-        self._write_log(f"[green]JSON-Report: {saved_json}[/green]")
+        self._write_log(f"[green]{t('log.json_report', path=saved_json)}[/green]")
 
         # HTML
         html_path = f"{base_name}.html"
         saved_html = Reporter.save_html(self._results, summary, html_path)
-        self._write_log(f"[green]HTML-Report: {saved_html}[/green]")
+        self._write_log(f"[green]{t('log.html_report', path=saved_html)}[/green]")
 
-        self.notify(f"Reports gespeichert: {json_path}, {html_path}")
+        self.notify(t("notify.reports_saved", json_path=json_path, html_path=html_path))
 
     def _save_reports_auto(self, summary: ScanSummary) -> None:
         """Speichert Reports automatisch (CLI-Parameter).
@@ -530,27 +531,27 @@ class ConsoleErrorScannerApp(App):
         """
         if self.output_json:
             path = Reporter.save_json(self._results, summary, self.output_json)
-            self._write_log(f"[green]JSON-Report: {path}[/green]")
+            self._write_log(f"[green]{t('log.json_report', path=path)}[/green]")
 
         if self.output_html:
             path = Reporter.save_html(self._results, summary, self.output_html)
-            self._write_log(f"[green]HTML-Report: {path}[/green]")
+            self._write_log(f"[green]{t('log.html_report', path=path)}[/green]")
 
     def action_copy_log(self) -> None:
         """Kopiert das Log in die Zwischenablage."""
         if not self._log_lines:
-            self.notify("Log ist leer.", severity="warning")
+            self.notify(t("notify.log_empty"), severity="warning")
             return
 
         text = "\n".join(self._log_lines)
         self.copy_to_clipboard(text)
-        self.notify(f"Log kopiert ({len(self._log_lines)} Zeilen)")
+        self.notify(t("notify.log_copied", count=len(self._log_lines)))
 
     def action_copy_details(self) -> None:
         """Kopiert die Detail-Ansicht (rechter Bereich) in die Zwischenablage."""
         detail = self.query_one("#error-detail", ErrorDetailView)
         if detail._result is None:
-            self.notify("Keine URL ausgewaehlt.", severity="warning")
+            self.notify(t("notify.no_url_selected"), severity="warning")
             return
 
         rendered = detail.render()
@@ -560,12 +561,12 @@ class ConsoleErrorScannerApp(App):
             plain = str(rendered)
 
         self.copy_to_clipboard(plain)
-        self.notify("Details kopiert")
+        self.notify(t("notify.details_copied"))
 
     def action_show_top_errors(self) -> None:
         """Zeigt den Top-10-Fehler Dialog."""
         if not self._results:
-            self.notify("Keine Ergebnisse vorhanden!", severity="warning")
+            self.notify(t("notify.no_results"), severity="warning")
             return
 
         from .screens.top_errors import TopErrorsScreen
@@ -647,7 +648,7 @@ class ConsoleErrorScannerApp(App):
         self.trigger_lazy_load = entry.trigger_lazy_load
 
         # Consent-Binding-Label aktualisieren
-        consent_label = "Consent AN" if self.accept_consent else "Consent AUS"
+        consent_label = t("binding.consent_on") if self.accept_consent else t("binding.consent_off")
         bindings_list = self._bindings.key_to_bindings.get("n", [])
         for i, binding in enumerate(bindings_list):
             if binding.action == "toggle_consent":
@@ -657,7 +658,7 @@ class ConsoleErrorScannerApp(App):
                 break
 
         # Scroll-Binding-Label aktualisieren
-        scroll_label = "Scroll AN" if self.trigger_lazy_load else "Scroll AUS"
+        scroll_label = t("binding.scroll_on") if self.trigger_lazy_load else t("binding.scroll_off")
         bindings_list = self._bindings.key_to_bindings.get("g", [])
         for i, binding in enumerate(bindings_list):
             if binding.action == "toggle_scroll":
@@ -674,25 +675,25 @@ class ConsoleErrorScannerApp(App):
             try:
                 self._whitelist = Whitelist.load(self.whitelist_path)
                 self._whitelist_active = True
-                self._write_log(f"[green]Whitelist geladen: {len(self._whitelist)} Patterns aus {self.whitelist_path}[/green]")
+                self._write_log(f"[green]{t('log.whitelist_loaded', count=len(self._whitelist), path=self.whitelist_path)}[/green]")
             except Exception as e:
-                self._write_log(f"[red]Whitelist-Fehler: {e}[/red]")
+                self._write_log(f"[red]{t('log.whitelist_error', error=e)}[/red]")
                 self._whitelist = None
                 self._whitelist_active = False
         elif not self.whitelist_path:
             self._whitelist = None
             self._whitelist_active = False
 
-        self._write_log(f"[bold]History: Parameter uebernommen[/bold]")
-        self._write_log(f"Sitemap: {self.sitemap_url}")
-        consent_info = "Consent: AN" if self.accept_consent else "Consent: AUS"
-        scroll_info = "Scroll: AN" if self.trigger_lazy_load else "Scroll: AUS"
-        self._write_log(f"Concurrency: {self.concurrency} | Timeout: {self.timeout}s | Console-Level: {self.console_level} | {consent_info} | {scroll_info}")
+        self._write_log(f"[bold]{t('log.history_params')}[/bold]")
+        self._write_log(t("log.sitemap_label", url=self.sitemap_url))
+        consent_info = t("log.consent_on") if self.accept_consent else t("log.consent_off")
+        scroll_info = t("log.scroll_on") if self.trigger_lazy_load else t("log.scroll_off")
+        self._write_log(t("log.config", concurrency=self.concurrency, timeout=self.timeout, level=self.console_level, consent=consent_info, scroll=scroll_info))
         if self.cookies:
             cookie_info = ", ".join(c.get("name", "?") for c in self.cookies)
-            self._write_log(f"Cookies: {cookie_info}")
+            self._write_log(t("log.cookies_label", cookies=cookie_info))
         if self.url_filter:
-            self._write_log(f"Filter: {self.url_filter}")
+            self._write_log(t("log.filter_label", filter=self.url_filter))
 
         self.refresh_bindings()
 
@@ -729,17 +730,17 @@ class ConsoleErrorScannerApp(App):
             total_ignored = 0
             for result in self._results:
                 total_ignored += self._whitelist.apply(result)
-            ignored_info = f" ({total_ignored} Fehler ignoriert)" if total_ignored > 0 else ""
-            self._write_log(f"[green]Whitelist aktiviert{ignored_info}[/green]")
+            ignored_info = t("log.whitelist_ignored_count", count=total_ignored) if total_ignored > 0 else ""
+            self._write_log(f"[green]{t('log.whitelist_activated', info=ignored_info)}[/green]")
         else:
             # Whitelist deaktivieren: alle whitelisted-Flags zuruecksetzen
             for result in self._results:
                 for error in result.errors:
                     error.whitelisted = False
-            self._write_log("[yellow]Whitelist deaktiviert[/yellow]")
+            self._write_log(f"[yellow]{t('log.whitelist_deactivated')}[/yellow]")
 
         # Binding-Label aktualisieren (Binding ist frozen -> dataclasses.replace)
-        label = "Whitelist AN" if self._whitelist_active else "Whitelist AUS"
+        label = t("binding.whitelist_on") if self._whitelist_active else t("binding.whitelist_off")
         bindings_list = self._bindings.key_to_bindings.get("w", [])
         for i, binding in enumerate(bindings_list):
             if binding.action == "toggle_whitelist":
@@ -774,12 +775,12 @@ class ConsoleErrorScannerApp(App):
         self.accept_consent = not self.accept_consent
 
         if self.accept_consent:
-            self._write_log("[green]Consent-Akzeptierung aktiviert[/green]")
+            self._write_log(f"[green]{t('log.consent_activated')}[/green]")
         else:
-            self._write_log("[yellow]Consent-Akzeptierung deaktiviert (nur Banner verstecken)[/yellow]")
+            self._write_log(f"[yellow]{t('log.consent_deactivated')}[/yellow]")
 
         # Binding-Label aktualisieren
-        label = "Consent AN" if self.accept_consent else "Consent AUS"
+        label = t("binding.consent_on") if self.accept_consent else t("binding.consent_off")
         bindings_list = self._bindings.key_to_bindings.get("n", [])
         for i, binding in enumerate(bindings_list):
             if binding.action == "toggle_consent":
@@ -799,12 +800,12 @@ class ConsoleErrorScannerApp(App):
         self.trigger_lazy_load = not self.trigger_lazy_load
 
         if self.trigger_lazy_load:
-            self._write_log("[green]Lazy-Loading-Scroll aktiviert[/green]")
+            self._write_log(f"[green]{t('log.scroll_activated')}[/green]")
         else:
-            self._write_log("[yellow]Lazy-Loading-Scroll deaktiviert[/yellow]")
+            self._write_log(f"[yellow]{t('log.scroll_deactivated')}[/yellow]")
 
         # Binding-Label aktualisieren
-        label = "Scroll AN" if self.trigger_lazy_load else "Scroll AUS"
+        label = t("binding.scroll_on") if self.trigger_lazy_load else t("binding.scroll_off")
         bindings_list = self._bindings.key_to_bindings.get("g", [])
         for i, binding in enumerate(bindings_list):
             if binding.action == "toggle_scroll":
@@ -963,8 +964,8 @@ class _SitemapErrorScreen(ModalScreen):
     """
 
     BINDINGS = [
-        Binding("escape", "close", "Schliessen"),
-        Binding("q", "close", "Schliessen"),
+        Binding("escape", "close", "Close"),
+        Binding("q", "close", "Close"),
     ]
 
     def __init__(self, message: str, **kwargs) -> None:
@@ -977,9 +978,9 @@ class _SitemapErrorScreen(ModalScreen):
         from textual.widgets import Static
 
         with Vertical():
-            yield Static("Fehler", id="error-title")
+            yield Static(t("sitemap_error.title"), id="error-title")
             yield Static(self._message, id="error-message")
-            yield Static("ESC = Schliessen", id="error-footer")
+            yield Static(t("sitemap_error.footer"), id="error-footer")
 
     def action_close(self) -> None:
         """Schliesst den Dialog."""

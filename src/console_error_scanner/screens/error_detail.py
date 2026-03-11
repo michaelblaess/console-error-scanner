@@ -9,6 +9,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 from rich.text import Text
 
+from ..i18n import t
 from ..models.scan_result import ErrorType, ScanResult
 
 
@@ -52,8 +53,8 @@ class ErrorDetailScreen(ModalScreen):
     """
 
     BINDINGS = [
-        Binding("escape", "close", "Schliessen"),
-        Binding("q", "close", "Schliessen"),
+        Binding("escape", "close", "Close"),
+        Binding("q", "close", "Close"),
     ]
 
     def __init__(self, result: ScanResult, **kwargs) -> None:
@@ -63,9 +64,9 @@ class ErrorDetailScreen(ModalScreen):
     def compose(self) -> ComposeResult:
         """Erstellt das Modal-Layout."""
         with Vertical():
-            yield Static(f"Fehlerdetails: {self._result.url}", id="detail-title")
+            yield Static(t("error_detail_screen.title", url=self._result.url), id="detail-title")
             yield Static(self._build_content(), id="detail-content")
-            yield Static("ESC / q = Schliessen", id="detail-footer")
+            yield Static(t("error_detail_screen.footer"), id="detail-footer")
 
     def _build_content(self) -> Text:
         """Erstellt den Detail-Text.
@@ -77,17 +78,17 @@ class ErrorDetailScreen(ModalScreen):
         text = Text()
 
         text.append(f"URL: {result.url}\n", style="bold")
-        text.append(f"HTTP Status: {result.http_status_code}\n")
-        text.append(f"Ladezeit: {result.load_time_ms}ms\n")
-        text.append(f"Retries: {result.retry_count}\n")
+        text.append(f"{t('error_detail_screen.http_status', code=result.http_status_code)}\n")
+        text.append(f"{t('error_detail_screen.load_time', time=result.load_time_ms)}\n")
+        text.append(f"{t('error_detail_screen.retries', count=result.retry_count)}\n")
         ignored_info = f", {result.ignored_count} ignored" if result.ignored_count > 0 else ""
-        text.append(f"Fehler gesamt: {result.total_error_count}{ignored_info}\n\n")
+        text.append(f"{t('error_detail_screen.total_errors', total=result.total_error_count, ignored=ignored_info)}\n\n")
 
         active_errors = [e for e in result.errors if not e.whitelisted]
         ignored_errors = [e for e in result.errors if e.whitelisted]
 
         if not active_errors and not ignored_errors:
-            text.append("Keine Fehler.", style="green")
+            text.append(t("error_detail_screen.no_errors"), style="green")
             return text
 
         for error in active_errors:
@@ -112,12 +113,12 @@ class ErrorDetailScreen(ModalScreen):
                 source = error.source
                 if error.line_number:
                     source += f":{error.line_number}"
-                text.append(f"  Quelle: {source}\n", style="dim")
+                text.append(f"{t('error_detail_screen.source', source=source)}\n", style="dim")
             text.append("\n")
 
         # Whitelist-Treffer (gedimmt)
         if ignored_errors:
-            text.append(f"Whitelist-Treffer ({len(ignored_errors)})\n", style="dim underline")
+            text.append(f"{t('error_detail_screen.whitelist_hits', count=len(ignored_errors))}\n", style="dim underline")
             text.append("\n")
 
             for error in ignored_errors:

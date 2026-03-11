@@ -9,6 +9,7 @@ from textual.widgets import DataTable, Input, Static
 from textual.message import Message
 from rich.text import Text
 
+from ..i18n import t
 from ..models.scan_result import ScanResult, PageStatus, format_page_size
 
 
@@ -73,7 +74,7 @@ class ResultsTable(Vertical):
 
     def compose(self) -> ComposeResult:
         """Erstellt die Kind-Widgets."""
-        yield Input(placeholder="Filter (URL, Status...)", id="filter-bar")
+        yield Input(placeholder=t("table.filter_placeholder"), id="filter-bar")
         yield Static("", id="results-count")
         yield DataTable(id="results-data", cursor_type="row", zebra_stripes=True)
 
@@ -292,9 +293,9 @@ class ResultsTable(Vertical):
         total = len(self._results)
         shown = len(self._filtered)
         if total == shown:
-            count_label.update(f" {total} URLs")
+            count_label.update(t("table.count", count=total))
         else:
-            count_label.update(f" {shown} von {total} URLs (gefiltert)")
+            count_label.update(t("table.count_filtered", shown=shown, total=total))
 
     def _styled_status(self, result: ScanResult) -> Text:
         """Erstellt farbcodierten Status-Text.
