@@ -8,6 +8,8 @@ from urllib.parse import urlparse, urlunparse
 
 import httpx
 
+from ..i18n import t
+
 
 # Standard-Namespace fuer Sitemaps
 SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
@@ -119,7 +121,7 @@ class SitemapParser:
                     wait_time = 5 * (2 ** attempt)
                     await asyncio.sleep(wait_time)
 
-        raise SitemapError(f"Sitemap konnte nach {max_retries} Versuchen nicht geladen werden: {last_error}")
+        raise SitemapError(t("sitemap.fetch_failed", retries=max_retries, error=last_error))
 
     @staticmethod
     def _read_local_file(file_path: str) -> str:
@@ -140,9 +142,9 @@ class SitemapParser:
             try:
                 return Path(file_path).read_text(encoding="latin-1")
             except Exception as e:
-                raise SitemapError(f"Datei konnte nicht gelesen werden: {file_path} ({e})")
+                raise SitemapError(t("sitemap.file_read_error", path=file_path, error=e))
         except Exception as e:
-            raise SitemapError(f"Datei konnte nicht gelesen werden: {file_path} ({e})")
+            raise SitemapError(t("sitemap.file_read_error", path=file_path, error=e))
 
     def _parse_xml(self, xml_content: str) -> list[str]:
         """Parst den XML-Inhalt und extrahiert URLs.
@@ -159,7 +161,7 @@ class SitemapParser:
         try:
             root = ET.fromstring(xml_content)
         except ET.ParseError as e:
-            raise SitemapError(f"Sitemap-XML konnte nicht geparst werden: {e}")
+            raise SitemapError(t("sitemap.xml_parse_error", error=e))
 
         urls: list[str] = []
 
@@ -238,34 +240,34 @@ async def discover_sitemap(
 
         # Phase 1: robots.txt nach Sitemap-Eintraegen durchsuchen
         robots_url = f"{origin}/robots.txt"
-        log(f"    Suche Sitemap in robots.txt: {robots_url}")
+        log(f"    {t('sitemap.discovery_robots_search', url=robots_url)}")
         try:
             response = await client.get(robots_url)
             if response.status_code == 200:
                 sitemap_urls = _parse_robots_sitemaps(response.text)
                 for sitemap_url in sitemap_urls:
-                    log(f"    robots.txt Eintrag gefunden: {sitemap_url}")
+                    log(f"    {t('sitemap.discovery_robots_entry', url=sitemap_url)}")
                     if await _is_valid_sitemap(client, sitemap_url):
-                        log(f"    [green]Sitemap gefunden: {sitemap_url}[/green]")
+                        log(f"    [green]{t('sitemap.discovery_found', url=sitemap_url)}[/green]")
                         return sitemap_url
-                    log(f"    {sitemap_url} nicht erreichbar, weiter...")
+                    log(f"    {t('sitemap.discovery_unreachable', url=sitemap_url)}")
         except Exception:
-            log("    robots.txt nicht erreichbar")
+            log(f"    {t('sitemap.discovery_robots_unreachable')}")
 
         # Phase 2: Typische Pfade durchprobieren
-        log("    Probiere typische Sitemap-Pfade...")
+        log(f"    {t('sitemap.discovery_trying_paths')}")
         for path in _COMMON_SITEMAP_PATHS:
             candidate = f"{origin}{path}"
-            log(f"    Teste: {candidate}")
+            log(f"    {t('sitemap.discovery_testing', url=candidate)}")
             if await _is_valid_sitemap(client, candidate):
-                log(f"    [green]Sitemap gefunden: {candidate}[/green]")
+                log(f"    [green]{t('sitemap.discovery_found', url=candidate)}[/green]")
                 return candidate
 
     raise SitemapError(
-        f"Keine Sitemap gefunden fuer {base_url}\n\n"
-        f"Getestet: robots.txt + {len(_COMMON_SITEMAP_PATHS)} typische Pfade.\n"
-        f"Bitte gib die Sitemap-URL direkt an, z.B.:\n"
-        f"  {origin}/pfad/zur/sitemap.xml"
+        t("sitemap.discovery_not_found",
+          url=base_url,
+          count=len(_COMMON_SITEMAP_PATHS),
+          example=f"{origin}/path/to/sitemap.xml")
     )
 
 

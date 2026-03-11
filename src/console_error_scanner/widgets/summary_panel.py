@@ -6,6 +6,7 @@ from rich.text import Text
 from textual.app import RenderResult
 from textual.widget import Widget
 
+from ..i18n import t
 from ..models.scan_result import ScanResult, ScanSummary, PageStatus
 
 
@@ -41,25 +42,25 @@ class SummaryPanel(Widget):
         text = Text()
 
         if not self._sitemap_url:
-            return Text("Keine Sitemap geladen.", style="dim italic")
+            return Text(t("summary.no_sitemap"), style="dim italic")
 
         # Zeile 1: Sitemap + Fortschritt
-        text.append(" Sitemap: ", style="bold")
+        text.append(t("summary.sitemap_label"), style="bold")
         text.append(self._sitemap_url, style="dim")
         text.append("  |  ", style="dim")
-        text.append(f"{self._total_urls} URLs", style="bold")
+        text.append(t("summary.urls", count=self._total_urls), style="bold")
 
         if self._scanned > 0:
-            text.append(f"  ({self._scanned}/{self._total_urls} gescannt)", style="dim")
+            text.append(t("summary.scanned", scanned=self._scanned, total=self._total_urls), style="dim")
 
         # Zeile 2: Fehler-Zaehler
         text.append("\n")
 
         if self._scanned > 0:
             if self._urls_with_errors > 0:
-                text.append(f" {self._urls_with_errors} Seiten mit Fehlern", style="bold red")
+                text.append(t("summary.pages_with_errors", count=self._urls_with_errors), style="bold red")
             else:
-                text.append(" Keine Fehler gefunden", style="bold green")
+                text.append(t("summary.no_errors"), style="bold green")
 
             text.append("  |  ")
             text.append(f"Console: {self._console_errors}", style="bold red" if self._console_errors > 0 else "dim")

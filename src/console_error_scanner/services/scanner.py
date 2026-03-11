@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import httpx
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
+from ..i18n import t
 from ..models.scan_result import ErrorType, PageError, PageStatus, ScanResult
 
 
@@ -88,12 +89,12 @@ class Scanner:
             if on_log:
                 on_log(msg)
 
-        log(f"Starte Scan von {total} URLs (Concurrency: {self.concurrency}, Timeout: {self.timeout}s)")
+        log(t("scanner.start", total=total, concurrency=self.concurrency, timeout=self.timeout))
 
         try:
             self._playwright = await async_playwright().start()
             self._browser = await self._launch_browser()
-            log("Browser gestartet")
+            log(t("scanner.browser_started"))
 
             async def scan_with_semaphore(result: ScanResult, index: int) -> None:
                 nonlocal completed
@@ -108,7 +109,7 @@ class Scanner:
                     if on_result:
                         on_result(result)
 
-                    log(f"Scanne ({index + 1}/{total}): {result.url}")
+                    log(t("scanner.scanning_url", current=index + 1, total=total, url=result.url))
                     await self._scan_single_page(result, log)
                     completed += 1
 
@@ -120,7 +121,7 @@ class Scanner:
                     status_text = result.status_icon
                     error_info = ""
                     if result.has_issues:
-                        error_info = f" | {result.total_error_count} Fehler"
+                        error_info = t("scanner.result_errors", count=result.total_error_count)
                     log(f"  [{status_text}] {result.url} ({result.load_time_ms / 1000:.1f}s){error_info}")
 
             tasks = [
@@ -130,10 +131,10 @@ class Scanner:
             await asyncio.gather(*tasks, return_exceptions=True)
 
         except Exception as e:
-            log(f"[red]Kritischer Fehler: {e}[/red]")
+            log(f"[red]{t('scanner.critical_error', error=e)}[/red]")
         finally:
             await self._cleanup()
-            log("Browser geschlossen")
+            log(t("scanner.browser_closed"))
 
         return results
 
@@ -158,26 +159,26 @@ class Scanner:
 
                 if attempt < self.MAX_RETRIES - 1:
                     wait_time = self.BACKOFF_BASE_SECONDS * (2 ** attempt)
-                    log(f"  Retry {attempt + 1}/{self.MAX_RETRIES} fuer {result.url} in {wait_time}s ({error_msg})")
+                    log(f"  {t('scanner.retry', attempt=attempt + 1, max=self.MAX_RETRIES, url=result.url, wait=wait_time, error=error_msg)}")
 
                     # Netzwerk-Check vor Retry
                     if not await self._check_network():
-                        log("  Warte auf Netzwerk...")
+                        log(f"  {t('scanner.waiting_network')}")
                         await self._wait_for_network(max_wait=wait_time * 2)
 
                     await asyncio.sleep(wait_time)
 
                     # Browser-Recovery falls noetig
                     if not self._browser or not self._browser.is_connected():
-                        log("  Browser-Recovery...")
+                        log(f"  {t('scanner.browser_recovery')}")
                         try:
                             self._browser = await self._launch_browser()
                         except Exception as browser_err:
-                            log(f"  Browser-Recovery fehlgeschlagen: {browser_err}")
+                            log(f"  {t('scanner.browser_recovery_failed', error=browser_err)}")
                 else:
                     # Letzter Versuch fehlgeschlagen
                     result.status = PageStatus.TIMEOUT if "timeout" in error_msg.lower() else PageStatus.ERROR
-                    log(f"  [bold red]Fehlgeschlagen nach {self.MAX_RETRIES} Versuchen: {error_msg}[/bold red]")
+                    log(f"  [bold red]{t('scanner.failed_after_retries', max=self.MAX_RETRIES, error=error_msg)}[/bold red]")
 
     async def _do_scan_page(
         self,
@@ -418,7 +419,7 @@ class Scanner:
                 await self._accept_consent(page, log)
             else:
                 # Nur Banner verstecken, NICHT akzeptieren
-                log("    Consent-Banner versteckt (kein Consent akzeptiert)")
+                log(f"    {t('scanner.consent_hidden')}")
                 await self._hide_consent_banners(page)
                 await page.wait_for_timeout(1000)
 
@@ -487,7 +488,7 @@ class Scanner:
                 return null;
             }""")
             if consent_result:
-                log(f"    Consent akzeptiert ({consent_result})")
+                log(f"    {t('scanner.consent_accepted', provider=consent_result)}")
                 await page.wait_for_timeout(2000)
                 # Banner verstecken als Sicherheit
                 await self._hide_consent_banners(page)
@@ -527,7 +528,7 @@ class Scanner:
                 button = page.locator(selector).first
                 if await button.is_visible(timeout=500):
                     await button.click(timeout=2000)
-                    log(f"    Consent-Button geklickt: {selector}")
+                    log(f"    {t('scanner.consent_button_clicked', selector=selector)}")
                     clicked = True
                     break
             except Exception:
@@ -611,7 +612,7 @@ class Scanner:
             scroll_height = await page.evaluate("document.documentElement.scrollHeight")
 
             if scroll_height <= viewport_height:
-                log("    Kein Scroll noetig (Seite passt in Viewport)")
+                log(f"    {t('scanner.no_scroll_needed')}")
                 return
 
             # Schrittweise nach unten scrollen
@@ -628,7 +629,7 @@ class Scanner:
             await page.evaluate("window.scrollTo(0, 0)")
             await page.wait_for_timeout(300)
 
-            log(f"    Lazy-Loading: {steps} Scroll-Schritte ausgefuehrt")
+            log(f"    {t('scanner.lazy_loading_done', steps=steps)}")
 
             # Warten bis alle Bilder geladen sind (max 5s Polling)
             for _ in range(10):
@@ -647,7 +648,7 @@ class Scanner:
             await page.wait_for_timeout(1000)
 
         except Exception as e:
-            log(f"    [dim]Lazy-Loading-Scroll fehlgeschlagen: {e}[/dim]")
+            log(f"    [dim]{t('scanner.lazy_loading_failed', error=e)}[/dim]")
 
     async def _launch_browser(self) -> Browser:
         """Startet den Browser (System-Chrome bevorzugt, Chromium als Fallback).

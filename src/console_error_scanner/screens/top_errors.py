@@ -11,6 +11,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 from rich.text import Text
 
+from ..i18n import t
 from ..models.scan_result import ErrorType, ScanResult
 
 
@@ -55,8 +56,8 @@ class TopErrorsScreen(ModalScreen):
     """
 
     BINDINGS = [
-        Binding("escape", "close", "Schliessen"),
-        Binding("q", "close", "Schliessen"),
+        Binding("escape", "close", "Close"),
+        Binding("q", "close", "Close"),
     ]
 
     def __init__(self, results: list[ScanResult], **kwargs) -> None:
@@ -66,9 +67,9 @@ class TopErrorsScreen(ModalScreen):
     def compose(self) -> ComposeResult:
         """Erstellt das Modal-Layout."""
         with VerticalScroll():
-            yield Static("Top 10 Fehler", id="top-title")
+            yield Static(t("top_errors.title"), id="top-title")
             yield Static(self._build_chart(), id="top-content")
-            yield Static("ESC / q = Schliessen", id="top-footer")
+            yield Static(t("top_errors.footer"), id="top-footer")
 
     def _build_chart(self) -> Text:
         """Erstellt das Balkendiagramm der Top-10-Fehler.
@@ -110,12 +111,12 @@ class TopErrorsScreen(ModalScreen):
         )
 
         if total_errors == 0:
-            text.append("Keine Fehler gefunden.", style="green bold")
+            text.append(t("top_errors.no_errors"), style="green bold")
             return text
 
-        text.append(f"Gesamt: {total_errors} Fehler auf ", style="bold")
+        text.append(t("top_errors.total", count=total_errors), style="bold")
         pages_with_errors = sum(1 for r in self._results if r.has_issues)
-        text.append(f"{pages_with_errors} Seiten\n", style="bold")
+        text.append(f"{t('top_errors.pages', count=pages_with_errors)}\n", style="bold")
         text.append("\n")
 
         # === Console Errors Top 10 ===
@@ -141,7 +142,7 @@ class TopErrorsScreen(ModalScreen):
         # === Seiten mit den meisten Fehlern ===
         text.append("\u2500" * 60, style="dim")
         text.append("\n\n")
-        text.append("Seiten mit den meisten Fehlern\n", style="bold cyan underline")
+        text.append(f"{t('top_errors.most_errors')}\n", style="bold cyan underline")
         text.append("\n")
         page_errors = [(r.url, r.total_error_count) for r in self._results if r.has_issues]
         page_errors.sort(key=lambda x: x[1], reverse=True)
@@ -192,7 +193,7 @@ def _normalize_message(msg: str) -> str:
         Normalisierte Version.
     """
     if not msg:
-        return "(leer)"
+        return t("top_errors.empty")
 
     # Erste Zeile nehmen
     first_line = msg.split("\n")[0].strip()

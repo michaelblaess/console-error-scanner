@@ -170,7 +170,7 @@
 
   <!-- ═══ HERO ═══ -->
   <section class="hero">
-    <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v1.4.0</div>
+    <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v1.5.0</div>
     <h1>Console <span class="accent">Error</span><br>Scanner</h1>
     <p class="hero-description">Scannt Websites automatisch auf JavaScript Console-Errors, HTTP-Fehler und CSP-Violations — mit Live-Ergebnissen, Top-10-Analyse und Scan-History direkt im Terminal.</p>
     <div class="hero-actions">
@@ -258,6 +258,11 @@
         <div class="feature-icon">✅</div>
         <h3>Whitelist-Support</h3>
         <p>Bekannte, irrelevante Fehler per Wildcard-Pattern ignorieren — für saubere Ergebnisse.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌐</div>
+        <h3>Mehrsprachig</h3>
+        <p>Deutsch und Englisch — alle UI-Texte, Log-Meldungen und Reports ueber JSON-Sprachdateien steuerbar (<code>--lang en</code>).</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🎨</div>
@@ -359,6 +364,11 @@
             <td><code>--output-html</code></td>
             <td>HTML-Report automatisch speichern</td>
             <td class="default">—</td>
+          </tr>
+          <tr>
+            <td><code>--lang</code></td>
+            <td>Sprache der Oberflaeche (de, en)</td>
+            <td class="default">de</td>
           </tr>
           <tr>
             <td><code>--no-consent</code></td>

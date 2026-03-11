@@ -16,41 +16,20 @@ if getattr(sys, "frozen", False):
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = _browsers_dir
 
 from console_error_scanner import __version__
-from console_error_scanner.app import ConsoleErrorScannerApp
-
-
-BANNER = f"""
-  Console Error Scanner v{__version__}
-  Scannt Websites auf Console-Errors und HTTP-Fehler (404, 5xx)
-"""
-
-USAGE_EXAMPLES = """
-Beispiele:
-  console-error-scanner https://example.com
-  console-error-scanner https://example.com/sitemap.xml
-  console-error-scanner sitemap.xml
-  console-error-scanner C:\\output\\sitemap_example-com_20260214.xml
-  console-error-scanner https://example.com --concurrency 12
-  console-error-scanner https://example.com --output-html report.html
-  console-error-scanner https://example.com/sitemap.xml --console-level error
-  console-error-scanner https://example.com --filter /produkte
-  console-error-scanner https://test.example.com --cookie auth=token123
-  console-error-scanner https://example.com --whitelist whitelist.json
-
-Tastenkuerzel in der TUI:
-  s = Scan starten    r = Reports speichern    t = Top 10 Fehler
-  h = History         l = Log ein/aus          e = Nur Fehler
-  n = Consent-Toggle  g = Scroll-Toggle         + / - = Log-Hoehe
-  i = Info            q = Beenden
-"""
+from console_error_scanner.i18n import load_locale, SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE
+from console_error_scanner.models.settings import Settings
 
 
 def main() -> None:
     """Haupteinstiegspunkt fuer die CLI."""
+    # Settings vorab laden um gespeicherte Sprache zu kennen
+    settings = Settings.load()
+    saved_lang = settings.language
+
     parser = argparse.ArgumentParser(
         prog="console-error-scanner",
-        description=BANNER,
-        epilog=USAGE_EXAMPLES,
+        description=f"\n  Console Error Scanner v{__version__}\n",
+        epilog=_usage_examples(),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
@@ -137,17 +116,36 @@ def main() -> None:
         default=None,
         help="Seite nicht scrollen (kein Lazy-Loading Trigger)",
     )
+    parser.add_argument(
+        "--lang",
+        default=saved_lang,
+        choices=SUPPORTED_LANGUAGES,
+        help=f"Language ({', '.join(SUPPORTED_LANGUAGES)})",
+    )
 
     args = parser.parse_args()
+
+    # Sprache laden (CLI > Settings > Default)
+    lang = args.lang
+    load_locale(lang)
+
+    # Sprache persistent speichern wenn per CLI geaendert
+    if lang != saved_lang:
+        settings.language = lang
+        settings.save()
 
     # Cookies parsen: "NAME=VALUE" -> {"name": "NAME", "value": "VALUE"}
     cookies = []
     for cookie_str in args.cookie:
         if "=" not in cookie_str:
-            print(f"Ungueltig: --cookie {cookie_str} (Format: NAME=VALUE)")
+            from console_error_scanner.i18n import t
+            print(t("cli.invalid_cookie", cookie=cookie_str))
             sys.exit(1)
         name, value = cookie_str.split("=", 1)
         cookies.append({"name": name.strip(), "value": value.strip()})
+
+    # App NACH load_locale importieren — t() ist sofort verfuegbar
+    from console_error_scanner.app import ConsoleErrorScannerApp
 
     app = ConsoleErrorScannerApp(
         sitemap_url=args.sitemap_url,
@@ -165,6 +163,23 @@ def main() -> None:
         trigger_lazy_load=not args.no_scroll if args.no_scroll is not None else None,
     )
     app.run()
+
+
+def _usage_examples() -> str:
+    """Gibt die Nutzungsbeispiele zurueck."""
+    return """
+Examples:
+  console-error-scanner https://example.com
+  console-error-scanner https://example.com/sitemap.xml
+  console-error-scanner sitemap.xml
+  console-error-scanner https://example.com --concurrency 12
+  console-error-scanner https://example.com --lang en
+
+Keybindings:
+  s = Scan        r = Report       t = Top 10       h = History
+  l = Log         e = Errors only  n = Consent      g = Scroll
+  i = Info        q = Quit         + / - = Log size
+"""
 
 
 if __name__ == "__main__":
