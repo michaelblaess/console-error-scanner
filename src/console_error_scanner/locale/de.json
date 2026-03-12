@@ -173,7 +173,7 @@
   "sitemap.discovery_robots_unreachable": "robots.txt nicht erreichbar",
   "sitemap.discovery_trying_paths": "Probiere typische Sitemap-Pfade...",
   "sitemap.discovery_testing": "Teste: {url}",
-  "sitemap.discovery_not_found": "Keine Sitemap gefunden fuer {url}\n\nGetestet: robots.txt + {count} typische Pfade.\nBitte gib die Sitemap-URL direkt an, z.B.:\n  {example}",
+  "sitemap.discovery_not_found": "Keine Sitemap gefunden fuer {url}\n\nGetestet: robots.txt + {count} typische Pfade.\nBitte gib die Sitemap-URL direkt an, z.B.:\n  {example}\n\nTipp: Mit dem Sitemap Generator kannst du eine Sitemap erstellen:\n  https://michaelblaess.github.io/sitemap-generator",
 
   "report.title": "Console Error Scanner Report",
   "report.created": "Erstellt: {timestamp} | Sitemap: {url}",
