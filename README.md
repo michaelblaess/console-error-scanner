@@ -124,7 +124,7 @@ console-error-scanner https://www.example.com --no-headless
 
 ## Features
 
-- **Sitemap Auto-Discovery**: Bei Domain-URLs wird die Sitemap automatisch ueber robots.txt und typische Pfade (/sitemap.xml, /sitemap/sitemap.xml, ...) gefunden
+- **Sitemap Auto-Discovery**: Bei Domain-URLs wird die Sitemap automatisch ueber robots.txt und typische Pfade (/sitemap.xml, /sitemap/sitemap.xml, ...) gefunden. Falls keine Sitemap vorhanden ist, kann mit dem [Sitemap Generator](https://michaelblaess.github.io/sitemap-generator) eine erstellt und als URL uebergeben werden
 - **Lazy-Loading Trigger**: Scrollt Seiten automatisch durch, um per IntersectionObserver nachgeladene Bilder zu triggern. Erkennt fehlende Bilder (404) unterhalb des Viewports. Per `g`-Taste oder `--no-scroll` umschaltbar
 - **Consent-Banner Behandlung**: 3-Phasen-Consent (JavaScript-API, Button-Klick Fallback, CSS-Hide) fuer Usercentrics, OneTrust, CookieBot und generische Banner. Per `n`-Taste oder `--no-consent` umschaltbar zwischen Akzeptieren und nur Verstecken
 - **CSP-Violation Erkennung**: Erkennt Content Security Policy Verstoesze via `pageerror` Events

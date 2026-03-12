@@ -173,7 +173,7 @@
   "sitemap.discovery_robots_unreachable": "robots.txt unreachable",
   "sitemap.discovery_trying_paths": "Trying common sitemap paths...",
   "sitemap.discovery_testing": "Testing: {url}",
-  "sitemap.discovery_not_found": "No sitemap found for {url}\n\nTested: robots.txt + {count} common paths.\nPlease specify the sitemap URL directly, e.g.:\n  {example}",
+  "sitemap.discovery_not_found": "No sitemap found for {url}\n\nTested: robots.txt + {count} common paths.\nPlease specify the sitemap URL directly, e.g.:\n  {example}\n\nTip: You can create a sitemap with the Sitemap Generator:\n  https://michaelblaess.github.io/sitemap-generator",
 
   "report.title": "Console Error Scanner Report",
   "report.created": "Created: {timestamp} | Sitemap: {url}",
