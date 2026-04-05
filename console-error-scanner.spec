@@ -28,6 +28,8 @@ a = Analysis(
     datas=[
         # App-eigene Dateien
         (os.path.join(src_pkg, "app.tcss"), "console_error_scanner"),
+        # Locale JSON-Dateien (i18n)
+        (os.path.join(src_pkg, "locale"), os.path.join("console_error_scanner", "locale")),
 
         # Playwright Driver (node.exe + package/)
         # Wird nach playwright/driver/ kopiert, wo das Python-Paket ihn erwartet
