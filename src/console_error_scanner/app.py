@@ -84,7 +84,8 @@ class ConsoleErrorScannerApp(App):
         self._bindings.bind("d", "copy_details", t("binding.copy_details"))
         self._bindings.bind("i", "show_about", t("binding.info"))
 
-        # Retro-Themes registrieren (C64, Amiga, Atari ST, IBM Terminal, NeXTSTEP, BeOS)
+        # Alle Retro-Themes aus textual-themes registrieren (31 Themes,
+        # via Ctrl+P → "theme" auswaehlbar).
         register_all(self)
 
         # Persistierte Einstellungen laden
