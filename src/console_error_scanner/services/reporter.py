@@ -111,8 +111,7 @@ class Reporter:
                     }.get(e.error_type.value, e.error_type.value)
 
                     ignored_items.append(
-                        f"<li><span class='error-type ignored'>{type_label}</span> "
-                        f"{_html_escape(e.message)}</li>"
+                        f"<li><span class='error-type ignored'>{type_label}</span> {_html_escape(e.message)}</li>"
                     )
 
                 ignored_details = (
@@ -195,20 +194,20 @@ class Reporter:
     </style>
 </head>
 <body>
-    <h1>{t('report.title')}</h1>
-    <p class="timestamp">{t('report.created', timestamp=timestamp, url=_html_escape(summary.sitemap_url))}</p>
+    <h1>{t("report.title")}</h1>
+    <p class="timestamp">{t("report.created", timestamp=timestamp, url=_html_escape(summary.sitemap_url))}</p>
 
     <div class="summary">
         <div class="summary-card">
-            <div class="label">{t('report.urls_total')}</div>
+            <div class="label">{t("report.urls_total")}</div>
             <div class="value">{summary.total_urls}</div>
         </div>
         <div class="summary-card">
-            <div class="label">{t('report.scanned')}</div>
+            <div class="label">{t("report.scanned")}</div>
             <div class="value ok">{summary.scanned_urls}</div>
         </div>
         <div class="summary-card">
-            <div class="label">{t('report.with_errors')}</div>
+            <div class="label">{t("report.with_errors")}</div>
             <div class="value {"error" if summary.urls_with_errors > 0 else "ok"}">{summary.urls_with_errors}</div>
         </div>
         <div class="summary-card">
@@ -236,7 +235,7 @@ class Reporter:
             <div class="value ignored">{summary.total_ignored}</div>
         </div>
         <div class="summary-card">
-            <div class="label">{t('report.duration')}</div>
+            <div class="label">{t("report.duration")}</div>
             <div class="value">{duration_s:.1f}s</div>
         </div>
     </div>
@@ -248,7 +247,7 @@ class Reporter:
                 <th>Status</th>
                 <th>URL</th>
                 <th>HTTP</th>
-                <th>{t('report.load_time')}</th>
+                <th>{t("report.load_time")}</th>
                 <th>Console</th>
                 <th>404</th>
                 <th>4xx</th>
@@ -257,7 +256,7 @@ class Reporter:
             </tr>
         </thead>
         <tbody>
-            {''.join(result_rows)}
+            {"".join(result_rows)}
         </tbody>
     </table>
 
@@ -282,8 +281,7 @@ def _html_escape(text: str) -> str:
         HTML-sicherer Text.
     """
     return (
-        text
-        .replace("&", "&amp;")
+        text.replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")
         .replace('"', "&quot;")

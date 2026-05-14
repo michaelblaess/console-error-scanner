@@ -10,7 +10,6 @@ import httpx
 
 from ..i18n import t
 
-
 # Standard-Namespace fuer Sitemaps
 SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
 
@@ -118,7 +117,8 @@ class SitemapParser:
                 last_error = e
                 if attempt < max_retries - 1:
                     import asyncio
-                    wait_time = 5 * (2 ** attempt)
+
+                    wait_time = 5 * (2**attempt)
                     await asyncio.sleep(wait_time)
 
         raise SitemapError(t("sitemap.fetch_failed", retries=max_retries, error=last_error))
@@ -228,7 +228,7 @@ async def discover_sitemap(
 
     # Cookies aufbereiten
     jar = httpx.Cookies()
-    for c in (cookies or []):
+    for c in cookies or []:
         jar.set(c["name"], c["value"])
 
     async with httpx.AsyncClient(
@@ -237,7 +237,6 @@ async def discover_sitemap(
         verify=False,
         cookies=jar,
     ) as client:
-
         # Phase 1: robots.txt nach Sitemap-Eintraegen durchsuchen
         robots_url = f"{origin}/robots.txt"
         log(f"    {t('sitemap.discovery_robots_search', url=robots_url)}")
@@ -264,10 +263,12 @@ async def discover_sitemap(
                 return candidate
 
     raise SitemapError(
-        t("sitemap.discovery_not_found",
-          url=base_url,
-          count=len(_COMMON_SITEMAP_PATHS),
-          example=f"{origin}/path/to/sitemap.xml")
+        t(
+            "sitemap.discovery_not_found",
+            url=base_url,
+            count=len(_COMMON_SITEMAP_PATHS),
+            example=f"{origin}/path/to/sitemap.xml",
+        )
     )
 
 
@@ -284,7 +285,7 @@ def _parse_robots_sitemaps(robots_text: str) -> list[str]:
     for line in robots_text.splitlines():
         stripped = line.strip()
         if stripped.lower().startswith("sitemap:"):
-            url = stripped[len("sitemap:"):].strip()
+            url = stripped[len("sitemap:") :].strip()
             if url:
                 urls.append(url)
     return urls
@@ -335,4 +336,5 @@ def _sanitize_url(url: str) -> str:
 
 class SitemapError(Exception):
     """Fehler beim Laden oder Parsen einer Sitemap."""
+
     pass

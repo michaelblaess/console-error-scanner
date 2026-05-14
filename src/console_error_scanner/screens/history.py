@@ -89,8 +89,10 @@ class HistoryScreen(ModalScreen[HistoryEntry | None]):
             else:
                 table = DataTable(id="history-table", cursor_type="row")
                 table.add_columns(
-                    t("history.col_number"), t("history.col_date"),
-                    t("history.col_url"), t("history.col_params"),
+                    t("history.col_number"),
+                    t("history.col_date"),
+                    t("history.col_url"),
+                    t("history.col_params"),
                 )
                 for idx, entry in enumerate(self._entries, start=1):
                     # Datum kuerzen
@@ -98,6 +100,7 @@ class HistoryScreen(ModalScreen[HistoryEntry | None]):
 
                     # Hostname extrahieren
                     from urllib.parse import urlparse
+
                     try:
                         host = urlparse(entry.sitemap_url).hostname or entry.sitemap_url
                     except Exception:

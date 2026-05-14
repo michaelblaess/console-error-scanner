@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import DataTable, Input, Static
-from textual.message import Message
-from rich.text import Text
 
 from ..i18n import t
-from ..models.scan_result import ScanResult, PageStatus, format_page_size
+from ..models.scan_result import PageStatus, ScanResult, format_page_size
 
 
 class ResultsTable(Vertical):
@@ -82,8 +82,18 @@ class ResultsTable(Vertical):
         """Initialisiert die Tabellenspalten und startet den Spinner-Timer."""
         table = self.query_one("#results-data", DataTable)
         self._col_keys = table.add_columns(
-            "#", "Status", "URL", "HTTP", "Zeit", "Size",
-            "Errors", "Warns", "404", "4xx", "5xx", "Ignored",
+            "#",
+            "Status",
+            "URL",
+            "HTTP",
+            "Zeit",
+            "Size",
+            "Errors",
+            "Warns",
+            "404",
+            "4xx",
+            "5xx",
+            "Ignored",
         )
         self._spinner_timer = self.set_interval(0.3, self._tick_spinner)
 
@@ -97,7 +107,9 @@ class ResultsTable(Vertical):
         for idx, result in enumerate(self._filtered):
             if result.status == PageStatus.SCANNING:
                 table.update_cell(
-                    str(idx), self._col_keys[1], self._styled_status(result),
+                    str(idx),
+                    self._col_keys[1],
+                    self._styled_status(result),
                 )
 
     def load_results(self, results: list[ScanResult]) -> None:
@@ -166,9 +178,7 @@ class ResultsTable(Vertical):
             http_4xx_text = _colored_count(result.http_4xx_count, "bold yellow")
             http_5xx_text = _colored_count(result.http_5xx_count, "bold red")
             ignored_text = (
-                Text(str(result.ignored_count), style="dim")
-                if result.ignored_count > 0
-                else Text("0", style="dim")
+                Text(str(result.ignored_count), style="dim") if result.ignored_count > 0 else Text("0", style="dim")
             )
         else:
             errors_text = Text("-", style="dim")
@@ -249,7 +259,9 @@ class ResultsTable(Vertical):
                 http_404_text = _colored_count(result.http_404_count, "bold yellow")
                 http_4xx_text = _colored_count(result.http_4xx_count, "bold yellow")
                 http_5xx_text = _colored_count(result.http_5xx_count, "bold red")
-                ignored_text = Text(str(result.ignored_count), style="dim") if result.ignored_count > 0 else Text("0", style="dim")
+                ignored_text = (
+                    Text(str(result.ignored_count), style="dim") if result.ignored_count > 0 else Text("0", style="dim")
+                )
             else:
                 errors_text = Text("-", style="dim")
                 warns_text = Text("-", style="dim")
