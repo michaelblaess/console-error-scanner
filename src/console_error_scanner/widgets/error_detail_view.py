@@ -9,8 +9,7 @@ from textual.app import RenderResult
 from textual.widget import Widget
 
 from ..i18n import t
-from ..models.scan_result import ErrorType, ScanResult, PageStatus, format_page_size
-
+from ..models.scan_result import ErrorType, PageStatus, ScanResult, format_page_size
 
 # Maximale Laenge fuer URLs in der Anzeige
 MAX_URL_DISPLAY_LEN = 80
@@ -119,7 +118,8 @@ class ErrorDetailView(Widget):
 
         # Console Warnings (ohne CSP-Violations)
         console_warnings = [
-            e for e in active_errors
+            e
+            for e in active_errors
             if e.error_type == ErrorType.CONSOLE_WARNING and not e.message.startswith("CSP violation:")
         ]
         if console_warnings:
@@ -133,7 +133,8 @@ class ErrorDetailView(Widget):
 
         # CSP Violations
         csp_violations = [
-            e for e in active_errors
+            e
+            for e in active_errors
             if e.error_type == ErrorType.CONSOLE_WARNING and e.message.startswith("CSP violation:")
         ]
         if csp_violations:
@@ -239,7 +240,6 @@ def _sanitize_url_for_link(url: str) -> str:
     return url.replace("(", "%28").replace(")", "%29")
 
 
-
 def _append_error_message(text: Text, error) -> None:
     """Haengt eine formatierte Fehlermeldung mit Stack-Trace an.
 
@@ -330,7 +330,7 @@ def _shorten_url(url: str) -> str:
     # Protokoll + Domain entfernen
     path_start = clean.find("//")
     if path_start >= 0:
-        after_protocol = clean[path_start + 2:]
+        after_protocol = clean[path_start + 2 :]
         slash_pos = after_protocol.find("/")
         if slash_pos >= 0:
             path = after_protocol[slash_pos:]
@@ -355,7 +355,7 @@ def _shorten_url(url: str) -> str:
     if colon_match:
         suffix = colon_match.group(1)
         if last_segment.endswith(suffix):
-            last_segment = last_segment[:-len(suffix)]
+            last_segment = last_segment[: -len(suffix)]
 
     short = f".../{'/'.join(segments[-2:-1])}/{last_segment}{suffix}"
 

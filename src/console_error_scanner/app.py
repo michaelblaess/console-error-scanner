@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
+from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -17,22 +18,20 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import Footer, Header, RichLog
-
 from textual_themes import register_all
 
 from . import __version__, __year__
 from .i18n import t
 from .models.history import History, HistoryEntry
+from .models.scan_result import PageStatus, ScanResult, ScanSummary
 from .models.settings import Settings
-from .models.scan_result import ScanResult, ScanSummary, PageStatus
-from .models.sitemap import SitemapParser, SitemapError, discover_sitemap, is_sitemap_url, is_local_file
+from .models.sitemap import SitemapError, SitemapParser, discover_sitemap, is_local_file, is_sitemap_url
 from .models.whitelist import Whitelist
 from .services.reporter import Reporter
 from .services.scanner import Scanner
 from .widgets.error_detail_view import ErrorDetailView
 from .widgets.results_table import ResultsTable
 from .widgets.summary_panel import SummaryPanel
-
 
 # Log-Hoehe: min/max/default (Zeilen)
 LOG_HEIGHT_DEFAULT = 15
@@ -107,7 +106,9 @@ class ConsoleErrorScannerApp(App):
         self.accept_consent = accept_consent if accept_consent is not None else self._settings.accept_consent
 
         # Scroll/Lazy-Load: CLI-Parameter hat Vorrang, sonst aus Settings
-        self.trigger_lazy_load = trigger_lazy_load if trigger_lazy_load is not None else self._settings.trigger_lazy_load
+        self.trigger_lazy_load = (
+            trigger_lazy_load if trigger_lazy_load is not None else self._settings.trigger_lazy_load
+        )
 
         # Theme aus Settings uebernehmen
         self.theme = self._settings.theme
@@ -148,7 +149,16 @@ class ConsoleErrorScannerApp(App):
         self._write_log(f"[bold]{t('log.version', version=__version__)}[/bold]")
         consent_info = t("log.consent_on") if self.accept_consent else t("log.consent_off")
         scroll_info = t("log.scroll_on") if self.trigger_lazy_load else t("log.scroll_off")
-        self._write_log(t("log.config", concurrency=self.concurrency, timeout=self.timeout, level=self.console_level, consent=consent_info, scroll=scroll_info))
+        self._write_log(
+            t(
+                "log.config",
+                concurrency=self.concurrency,
+                timeout=self.timeout,
+                level=self.console_level,
+                consent=consent_info,
+                scroll=scroll_info,
+            )
+        )
 
         # Consent-Binding-Label aktualisieren falls --no-consent
         if not self.accept_consent:
@@ -182,7 +192,9 @@ class ConsoleErrorScannerApp(App):
             try:
                 self._whitelist = Whitelist.load(self.whitelist_path)
                 self._whitelist_active = True
-                self._write_log(f"[green]{t('log.whitelist_loaded', count=len(self._whitelist), path=self.whitelist_path)}[/green]")
+                self._write_log(
+                    f"[green]{t('log.whitelist_loaded', count=len(self._whitelist), path=self.whitelist_path)}[/green]"
+                )
                 for pattern in self._whitelist.patterns:
                     self._write_log(f"[dim]  - {pattern}[/dim]")
             except Exception as e:
@@ -193,6 +205,7 @@ class ConsoleErrorScannerApp(App):
         # Focus auf die Tabelle setzen damit Footer-Bindings sofort sichtbar
         try:
             from textual.widgets import DataTable
+
             table = self.query_one("#results-data", DataTable)
             table.focus()
         except Exception:
@@ -248,9 +261,7 @@ class ConsoleErrorScannerApp(App):
             except SitemapError as e:
                 self._stop_sitemap_loading()
                 self._write_log(f"[red]{t('log.sitemap_error', error=e)}[/red]")
-                self.app.push_screen(
-                    _SitemapErrorScreen(t("sitemap_error.sitemap_error", error=e))
-                )
+                self.app.push_screen(_SitemapErrorScreen(t("sitemap_error.sitemap_error", error=e)))
                 return
             self._write_log(t("log.loading_sitemap_url", url=self.sitemap_url))
         else:
@@ -262,16 +273,12 @@ class ConsoleErrorScannerApp(App):
         except SitemapError as e:
             self._stop_sitemap_loading()
             self._write_log(f"[red]{t('log.sitemap_error', error=e)}[/red]")
-            self.app.push_screen(
-                _SitemapErrorScreen(t("sitemap_error.sitemap_error", error=e))
-            )
+            self.app.push_screen(_SitemapErrorScreen(t("sitemap_error.sitemap_error", error=e)))
             return
         except Exception as e:
             self._stop_sitemap_loading()
             self._write_log(f"[red]{t('log.unexpected_error', error=e)}[/red]")
-            self.app.push_screen(
-                _SitemapErrorScreen(t("sitemap_error.unexpected_error", error=e))
-            )
+            self.app.push_screen(_SitemapErrorScreen(t("sitemap_error.unexpected_error", error=e)))
             return
 
         self._stop_sitemap_loading()
@@ -402,15 +409,17 @@ class ConsoleErrorScannerApp(App):
 
         self._write_log(f"\n[bold green]{t('log.scan_complete', duration=_format_duration(duration_ms))}[/bold green]")
         ignored_info = f" | Ignored: {summary_data.total_ignored}" if summary_data.total_ignored > 0 else ""
-        self._write_log(t(
-            "log.scan_result",
-            errors_pages=summary_data.urls_with_errors,
-            console=summary_data.total_console_errors,
-            http_404=summary_data.total_http_404,
-            http_4xx=summary_data.total_http_4xx,
-            http_5xx=summary_data.total_http_5xx,
-            ignored=ignored_info,
-        ))
+        self._write_log(
+            t(
+                "log.scan_result",
+                errors_pages=summary_data.urls_with_errors,
+                console=summary_data.total_console_errors,
+                http_404=summary_data.total_http_404,
+                http_4xx=summary_data.total_http_4xx,
+                http_5xx=summary_data.total_http_5xx,
+                ignored=ignored_info,
+            )
+        )
         if summary_data.total_ignored > 0:
             self._write_log(f"[dim]{t('log.whitelist_suppressed', count=summary_data.total_ignored)}[/dim]")
 
@@ -473,24 +482,25 @@ class ConsoleErrorScannerApp(App):
             remaining = _format_duration(int(remaining_s * 1000))
             self.sub_title = t(
                 "subtitle.scanning",
-                bar=bar, pct=pct, current=current, total=total,
-                remaining=remaining, avg=f"{avg_per_url:.1f}",
+                bar=bar,
+                pct=pct,
+                current=current,
+                total=total,
+                remaining=remaining,
+                avg=f"{avg_per_url:.1f}",
             )
         else:
             self.sub_title = t("subtitle.scanning_start", bar=bar, total=total)
 
-    def on_results_table_result_highlighted(
-        self, event: ResultsTable.ResultHighlighted
-    ) -> None:
+    def on_results_table_result_highlighted(self, event: ResultsTable.ResultHighlighted) -> None:
         """Aktualisiert die Detail-Ansicht beim Cursor-Wechsel."""
         detail = self.query_one("#error-detail", ErrorDetailView)
         detail.show_result(event.result)
 
-    def on_results_table_result_selected(
-        self, event: ResultsTable.ResultSelected
-    ) -> None:
+    def on_results_table_result_selected(self, event: ResultsTable.ResultSelected) -> None:
         """Oeffnet den Detail-Dialog bei Enter/Doppelklick."""
         from .screens.error_detail import ErrorDetailScreen
+
         self.push_screen(ErrorDetailScreen(event.result))
 
     def action_save_reports(self) -> None:
@@ -571,6 +581,7 @@ class ConsoleErrorScannerApp(App):
             return
 
         from .screens.top_errors import TopErrorsScreen
+
         self.push_screen(TopErrorsScreen(self._results))
 
     def action_toggle_log(self) -> None:
@@ -599,6 +610,7 @@ class ConsoleErrorScannerApp(App):
         """Fokussiert das Filter-Eingabefeld."""
         try:
             from textual.widgets import Input
+
             filter_input = self.query_one("#filter-bar", Input)
             filter_input.focus()
         except Exception:
@@ -607,7 +619,8 @@ class ConsoleErrorScannerApp(App):
     def action_unfocus_filter(self) -> None:
         """Leert den Filter und gibt Focus zurueck an die Tabelle."""
         try:
-            from textual.widgets import Input, DataTable
+            from textual.widgets import DataTable, Input
+
             filter_input = self.query_one("#filter-bar", Input)
             filter_input.value = ""
             table = self.query_one("#results-data", DataTable)
@@ -618,11 +631,13 @@ class ConsoleErrorScannerApp(App):
     def action_show_about(self) -> None:
         """Zeigt den About-Dialog an."""
         from .screens.about import AboutScreen
+
         self.push_screen(AboutScreen())
 
     def action_show_history(self) -> None:
         """Zeigt die Scan-History und laedt bei Auswahl die Parameter."""
         from .screens.history import HistoryScreen
+
         self.push_screen(HistoryScreen(), callback=self._on_history_selected)
 
     def _on_history_selected(self, entry: HistoryEntry | None) -> None:
@@ -653,9 +668,7 @@ class ConsoleErrorScannerApp(App):
         bindings_list = self._bindings.key_to_bindings.get("n", [])
         for i, binding in enumerate(bindings_list):
             if binding.action == "toggle_consent":
-                self._bindings.key_to_bindings["n"][i] = dataclasses.replace(
-                    binding, description=consent_label
-                )
+                self._bindings.key_to_bindings["n"][i] = dataclasses.replace(binding, description=consent_label)
                 break
 
         # Scroll-Binding-Label aktualisieren
@@ -663,9 +676,7 @@ class ConsoleErrorScannerApp(App):
         bindings_list = self._bindings.key_to_bindings.get("g", [])
         for i, binding in enumerate(bindings_list):
             if binding.action == "toggle_scroll":
-                self._bindings.key_to_bindings["g"][i] = dataclasses.replace(
-                    binding, description=scroll_label
-                )
+                self._bindings.key_to_bindings["g"][i] = dataclasses.replace(binding, description=scroll_label)
                 break
 
         # Whitelist neu laden falls sich der Pfad geaendert hat
@@ -676,7 +687,9 @@ class ConsoleErrorScannerApp(App):
             try:
                 self._whitelist = Whitelist.load(self.whitelist_path)
                 self._whitelist_active = True
-                self._write_log(f"[green]{t('log.whitelist_loaded', count=len(self._whitelist), path=self.whitelist_path)}[/green]")
+                self._write_log(
+                    f"[green]{t('log.whitelist_loaded', count=len(self._whitelist), path=self.whitelist_path)}[/green]"
+                )
             except Exception as e:
                 self._write_log(f"[red]{t('log.whitelist_error', error=e)}[/red]")
                 self._whitelist = None
@@ -689,7 +702,16 @@ class ConsoleErrorScannerApp(App):
         self._write_log(t("log.sitemap_label", url=self.sitemap_url))
         consent_info = t("log.consent_on") if self.accept_consent else t("log.consent_off")
         scroll_info = t("log.scroll_on") if self.trigger_lazy_load else t("log.scroll_off")
-        self._write_log(t("log.config", concurrency=self.concurrency, timeout=self.timeout, level=self.console_level, consent=consent_info, scroll=scroll_info))
+        self._write_log(
+            t(
+                "log.config",
+                concurrency=self.concurrency,
+                timeout=self.timeout,
+                level=self.console_level,
+                consent=consent_info,
+                scroll=scroll_info,
+            )
+        )
         if self.cookies:
             cookie_info = ", ".join(c.get("name", "?") for c in self.cookies)
             self._write_log(t("log.cookies_label", cookies=cookie_info))
@@ -745,9 +767,7 @@ class ConsoleErrorScannerApp(App):
         bindings_list = self._bindings.key_to_bindings.get("w", [])
         for i, binding in enumerate(bindings_list):
             if binding.action == "toggle_whitelist":
-                self._bindings.key_to_bindings["w"][i] = dataclasses.replace(
-                    binding, description=label
-                )
+                self._bindings.key_to_bindings["w"][i] = dataclasses.replace(binding, description=label)
                 break
 
         # UI komplett aktualisieren
@@ -785,9 +805,7 @@ class ConsoleErrorScannerApp(App):
         bindings_list = self._bindings.key_to_bindings.get("n", [])
         for i, binding in enumerate(bindings_list):
             if binding.action == "toggle_consent":
-                self._bindings.key_to_bindings["n"][i] = dataclasses.replace(
-                    binding, description=label
-                )
+                self._bindings.key_to_bindings["n"][i] = dataclasses.replace(binding, description=label)
                 break
 
         # Einstellung persistent speichern
@@ -810,9 +828,7 @@ class ConsoleErrorScannerApp(App):
         bindings_list = self._bindings.key_to_bindings.get("g", [])
         for i, binding in enumerate(bindings_list):
             if binding.action == "toggle_scroll":
-                self._bindings.key_to_bindings["g"][i] = dataclasses.replace(
-                    binding, description=label
-                )
+                self._bindings.key_to_bindings["g"][i] = dataclasses.replace(binding, description=label)
                 break
 
         # Einstellung persistent speichern
@@ -884,7 +900,6 @@ def _format_progress_bar(current: int, total: int) -> str:
         return "░" * _BAR_WIDTH
     filled = int(_BAR_WIDTH * current / total)
     return "█" * filled + "░" * (_BAR_WIDTH - filled)
-
 
 
 def _format_duration(duration_ms: int) -> str:

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Static
-from rich.text import Text
 
 from ..i18n import t
 from ..models.scan_result import ErrorType, ScanResult
@@ -82,7 +82,9 @@ class ErrorDetailScreen(ModalScreen):
         text.append(f"{t('error_detail_screen.load_time', time=result.load_time_ms)}\n")
         text.append(f"{t('error_detail_screen.retries', count=result.retry_count)}\n")
         ignored_info = f", {result.ignored_count} ignored" if result.ignored_count > 0 else ""
-        text.append(f"{t('error_detail_screen.total_errors', total=result.total_error_count, ignored=ignored_info)}\n\n")
+        text.append(
+            f"{t('error_detail_screen.total_errors', total=result.total_error_count, ignored=ignored_info)}\n\n"
+        )
 
         active_errors = [e for e in result.errors if not e.whitelisted]
         ignored_errors = [e for e in result.errors if e.whitelisted]
@@ -118,7 +120,9 @@ class ErrorDetailScreen(ModalScreen):
 
         # Whitelist-Treffer (gedimmt)
         if ignored_errors:
-            text.append(f"{t('error_detail_screen.whitelist_hits', count=len(ignored_errors))}\n", style="dim underline")
+            text.append(
+                f"{t('error_detail_screen.whitelist_hits', count=len(ignored_errors))}\n", style="dim underline"
+            )
             text.append("\n")
 
             for error in ignored_errors:
