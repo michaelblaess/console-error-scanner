@@ -1,13 +1,13 @@
 # Console Error Scanner
 
-[![Stars](https://img.shields.io/github/stars/michaelblaess/console-error-scanner?logo=github&color=fbbf24)](https://github.com/michaelblaess/console-error-scanner/stargazers)
-[![Forks](https://img.shields.io/github/forks/michaelblaess/console-error-scanner?logo=github&color=34d399)](https://github.com/michaelblaess/console-error-scanner/network/members)
-[![Issues](https://img.shields.io/github/issues/michaelblaess/console-error-scanner?logo=github&color=f87171)](https://github.com/michaelblaess/console-error-scanner/issues)
-[![Pull Requests](https://img.shields.io/github/issues-pr/michaelblaess/console-error-scanner?logo=github&color=a78bfa)](https://github.com/michaelblaess/console-error-scanner/pulls)
+[![Stars](https://img.shields.io/github/stars/michaelblaess/console-error-scanner?logo=github&logoColor=white&color=fbbf24)](https://github.com/michaelblaess/console-error-scanner/stargazers)
+[![Forks](https://img.shields.io/github/forks/michaelblaess/console-error-scanner?logo=github&logoColor=white&color=34d399)](https://github.com/michaelblaess/console-error-scanner/network/members)
+[![Issues](https://img.shields.io/github/issues/michaelblaess/console-error-scanner?logo=github&logoColor=white&color=f87171)](https://github.com/michaelblaess/console-error-scanner/issues)
+[![Pull Requests](https://img.shields.io/github/issues-pr/michaelblaess/console-error-scanner?logo=github&logoColor=white&color=a78bfa)](https://github.com/michaelblaess/console-error-scanner/pulls)
 
-[![Last Commit](https://img.shields.io/github/last-commit/michaelblaess/console-error-scanner?logo=git&color=3b82f6)](https://github.com/michaelblaess/console-error-scanner/commits/main)
+[![Last Commit](https://img.shields.io/github/last-commit/michaelblaess/console-error-scanner?logo=git&logoColor=white&color=3b82f6)](https://github.com/michaelblaess/console-error-scanner/commits/main)
 [![License](https://img.shields.io/badge/license-Apache_2.0-3b82f6)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10+-3b82f6?logo=python)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.10+-3b82f6?logo=python&logoColor=white)](https://www.python.org/)
 
 TUI-Tool zum automatischen Scannen von Websites auf JavaScript Console-Errors und HTTP-Fehler (404, 5xx).
 Eingabe ist eine Website-URL oder Sitemap-URL (XML). Bei Domain-URLs wird die Sitemap automatisch ueber robots.txt und typische Pfade gefunden. Ergebnisse werden live in einer Terminal-UI angezeigt und koennen als HTML- und JSON-Reports exportiert werden.
