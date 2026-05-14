@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from collections.abc import Callable
 from urllib.parse import urlparse
@@ -242,7 +243,7 @@ class Scanner:
                     directive = csp.get("violatedDirective", "")
                     blocked_url = csp.get("blockedURL", "")
                     is_report_only = csp.get("isReportOnly", False)
-                    violation_type = csp.get("contentSecurityPolicyViolationType", "")
+                    csp.get("contentSecurityPolicyViolationType", "")
 
                     # Quell-Position extrahieren
                     source_loc = csp.get("sourceCodeLocation", {})
@@ -292,16 +293,15 @@ class Scanner:
                             line_number=line,
                         )
                     )
-                elif source == "deprecation":
-                    if self.console_level == "all":
-                        result.errors.append(
-                            PageError(
-                                error_type=ErrorType.CONSOLE_WARNING,
-                                message=f"Deprecation: {text}",
-                                source=url,
-                                line_number=line,
-                            )
+                elif source == "deprecation" and self.console_level == "all":
+                    result.errors.append(
+                        PageError(
+                            error_type=ErrorType.CONSOLE_WARNING,
+                            message=f"Deprecation: {text}",
+                            source=url,
+                            line_number=line,
                         )
+                    )
 
             cdp_client.on("Log.entryAdded", on_cdp_log)
 
@@ -467,10 +467,8 @@ class Scanner:
 
         finally:
             # CDP-Session sauber schliessen
-            try:
+            with contextlib.suppress(Exception):
                 await cdp_client.detach()
-            except Exception:
-                pass
             await context.close()
 
     async def _accept_consent(
@@ -573,7 +571,7 @@ class Scanner:
         Args:
             page: Die Playwright-Page.
         """
-        try:
+        with contextlib.suppress(Exception):
             await page.evaluate("""() => {
                 var selectors = [
                     '#usercentrics-root',
@@ -611,8 +609,6 @@ class Scanner:
                 document.body.style.overflow = '';
                 document.documentElement.style.overflow = '';
             }""")
-        except Exception:
-            pass
 
     async def _trigger_lazy_loading(
         self,

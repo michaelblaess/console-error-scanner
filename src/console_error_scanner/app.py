@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import dataclasses
 import re
 import time
@@ -566,10 +567,7 @@ class ConsoleErrorScannerApp(App):
             return
 
         rendered = detail.render()
-        if isinstance(rendered, Text):
-            plain = rendered.plain
-        else:
-            plain = str(rendered)
+        plain = rendered.plain if isinstance(rendered, Text) else str(rendered)
 
         self.copy_to_clipboard(plain)
         self.notify(t("notify.details_copied"))
@@ -862,10 +860,8 @@ class ConsoleErrorScannerApp(App):
 
             loop.set_exception_handler(_suppress_target_closed)
 
-            try:
+            with contextlib.suppress(Exception):
                 await self._scanner._cleanup()
-            except Exception:
-                pass
             self._scanner = None
             self._scan_running = False
         self.exit()
@@ -877,10 +873,8 @@ class ConsoleErrorScannerApp(App):
             line: Log-Nachricht (kann Rich-Markup enthalten).
         """
         self._log_lines.append(line)
-        try:
+        with contextlib.suppress(Exception):
             self.query_one("#scan-log", RichLog).write(line)
-        except Exception:
-            pass
 
 
 _BAR_WIDTH = 20

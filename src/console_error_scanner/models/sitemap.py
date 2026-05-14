@@ -142,9 +142,9 @@ class SitemapParser:
             try:
                 return Path(file_path).read_text(encoding="latin-1")
             except Exception as e:
-                raise SitemapError(t("sitemap.file_read_error", path=file_path, error=e))
+                raise SitemapError(t("sitemap.file_read_error", path=file_path, error=e)) from e
         except Exception as e:
-            raise SitemapError(t("sitemap.file_read_error", path=file_path, error=e))
+            raise SitemapError(t("sitemap.file_read_error", path=file_path, error=e)) from e
 
     def _parse_xml(self, xml_content: str) -> list[str]:
         """Parst den XML-Inhalt und extrahiert URLs.
@@ -161,7 +161,7 @@ class SitemapParser:
         try:
             root = ET.fromstring(xml_content)
         except ET.ParseError as e:
-            raise SitemapError(t("sitemap.xml_parse_error", error=e))
+            raise SitemapError(t("sitemap.xml_parse_error", error=e)) from e
 
         urls: list[str] = []
 
@@ -220,7 +220,9 @@ async def discover_sitemap(
         SitemapError: Wenn keine Sitemap gefunden wird.
     """
     if log is None:
-        log = lambda msg: None
+
+        def log(msg):
+            return None
 
     # Basis-URL normalisieren (Trailing Slash entfernen)
     parsed = urlparse(base_url)
