@@ -16,7 +16,7 @@ if getattr(sys, "frozen", False):
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = _browsers_dir
 
 from console_error_scanner import __version__
-from console_error_scanner.i18n import load_locale, SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE
+from console_error_scanner.i18n import SUPPORTED_LANGUAGES, load_locale
 from console_error_scanner.models.settings import Settings
 
 
@@ -41,14 +41,16 @@ def main() -> None:
         help="URL der Website, Sitemap-URL oder lokale sitemap.xml Datei. Bei Domain-URLs wird die Sitemap automatisch gesucht.",
     )
     parser.add_argument(
-        "--concurrency", "-c",
+        "--concurrency",
+        "-c",
         type=int,
         default=8,
         metavar="N",
         help="Max parallele Browser-Tabs (default: 8)",
     )
     parser.add_argument(
-        "--timeout", "-t",
+        "--timeout",
+        "-t",
         type=int,
         default=60,
         metavar="SEC",
@@ -73,7 +75,8 @@ def main() -> None:
         help="Browser sichtbar starten (Debugging)",
     )
     parser.add_argument(
-        "--filter", "-f",
+        "--filter",
+        "-f",
         default="",
         metavar="TEXT",
         help="Nur URLs scannen die TEXT enthalten",
@@ -99,7 +102,8 @@ def main() -> None:
         help="Cookie setzen (z.B. --cookie auth=token). Mehrfach verwendbar.",
     )
     parser.add_argument(
-        "--whitelist", "-w",
+        "--whitelist",
+        "-w",
         default="",
         metavar="PATH",
         help="Pfad zur Whitelist-JSON (bekannte Fehler ignorieren)",
@@ -139,6 +143,7 @@ def main() -> None:
     for cookie_str in args.cookie:
         if "=" not in cookie_str:
             from console_error_scanner.i18n import t
+
             print(t("cli.invalid_cookie", cookie=cookie_str))
             sys.exit(1)
         name, value = cookie_str.split("=", 1)

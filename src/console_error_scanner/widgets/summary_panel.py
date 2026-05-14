@@ -7,7 +7,7 @@ from textual.app import RenderResult
 from textual.widget import Widget
 
 from ..i18n import t
-from ..models.scan_result import ScanResult, ScanSummary, PageStatus
+from ..models.scan_result import PageStatus, ScanResult
 
 
 class SummaryPanel(Widget):
@@ -106,8 +106,7 @@ class SummaryPanel(Widget):
             results: Liste der aktuellen Scan-Ergebnisse.
         """
         self._scanned = sum(
-            1 for r in results
-            if r.status in (PageStatus.OK, PageStatus.WARNING, PageStatus.ERROR, PageStatus.TIMEOUT)
+            1 for r in results if r.status in (PageStatus.OK, PageStatus.WARNING, PageStatus.ERROR, PageStatus.TIMEOUT)
         )
         self._console_errors = sum(r.console_error_count for r in results)
         self._console_warnings = sum(r.console_warning_count for r in results)

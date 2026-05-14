@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
 from urllib.parse import urlparse
 
 import httpx
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+from playwright.async_api import Browser, Page, async_playwright
 
 from ..i18n import t
 from ..models.scan_result import ErrorType, PageError, PageStatus, ScanResult
@@ -45,7 +45,7 @@ class Scanner:
         headless: bool = True,
         console_level: str = "warn",
         user_agent: str = "",
-        cookies: Optional[list[dict[str, str]]] = None,
+        cookies: list[dict[str, str]] | None = None,
         accept_consent: bool = True,
         trigger_lazy_load: bool = True,
     ) -> None:
@@ -59,15 +59,15 @@ class Scanner:
         self.trigger_lazy_load = trigger_lazy_load
         self._captured_types = self.CONSOLE_LEVELS.get(console_level, {"error", "warning"})
         self._cancelled = False
-        self._browser: Optional[Browser] = None
+        self._browser: Browser | None = None
         self._playwright = None
 
     async def scan_urls(
         self,
         results: list[ScanResult],
-        on_result: Optional[Callable[[ScanResult], None]] = None,
-        on_log: Optional[Callable[[str], None]] = None,
-        on_progress: Optional[Callable[[int, int], None]] = None,
+        on_result: Callable[[ScanResult], None] | None = None,
+        on_log: Callable[[str], None] | None = None,
+        on_progress: Callable[[int, int], None] | None = None,
     ) -> list[ScanResult]:
         """Scannt alle URLs parallel mit Semaphore-Begrenzung.
 
@@ -124,10 +124,7 @@ class Scanner:
                         error_info = t("scanner.result_errors", count=result.total_error_count)
                     log(f"  [{status_text}] {result.url} ({result.load_time_ms / 1000:.1f}s){error_info}")
 
-            tasks = [
-                scan_with_semaphore(result, idx)
-                for idx, result in enumerate(results)
-            ]
+            tasks = [scan_with_semaphore(result, idx) for idx, result in enumerate(results)]
             await asyncio.gather(*tasks, return_exceptions=True)
 
         except Exception as e:
@@ -158,8 +155,10 @@ class Scanner:
                 error_msg = str(e)
 
                 if attempt < self.MAX_RETRIES - 1:
-                    wait_time = self.BACKOFF_BASE_SECONDS * (2 ** attempt)
-                    log(f"  {t('scanner.retry', attempt=attempt + 1, max=self.MAX_RETRIES, url=result.url, wait=wait_time, error=error_msg)}")
+                    wait_time = self.BACKOFF_BASE_SECONDS * (2**attempt)
+                    log(
+                        f"  {t('scanner.retry', attempt=attempt + 1, max=self.MAX_RETRIES, url=result.url, wait=wait_time, error=error_msg)}"
+                    )
 
                     # Netzwerk-Check vor Retry
                     if not await self._check_network():
@@ -178,7 +177,9 @@ class Scanner:
                 else:
                     # Letzter Versuch fehlgeschlagen
                     result.status = PageStatus.TIMEOUT if "timeout" in error_msg.lower() else PageStatus.ERROR
-                    log(f"  [bold red]{t('scanner.failed_after_retries', max=self.MAX_RETRIES, error=error_msg)}[/bold red]")
+                    log(
+                        f"  [bold red]{t('scanner.failed_after_retries', max=self.MAX_RETRIES, error=error_msg)}[/bold red]"
+                    )
 
     async def _do_scan_page(
         self,
@@ -253,12 +254,14 @@ class Scanner:
                     if blocked_url:
                         msg += f" blocked {blocked_url}"
 
-                    result.errors.append(PageError(
-                        error_type=ErrorType.CONSOLE_WARNING,
-                        message=msg,
-                        source=source_url or blocked_url,
-                        line_number=source_line,
-                    ))
+                    result.errors.append(
+                        PageError(
+                            error_type=ErrorType.CONSOLE_WARNING,
+                            message=msg,
+                            source=source_url or blocked_url,
+                            line_number=source_line,
+                        )
+                    )
 
             cdp_client.on("Audits.issueAdded", on_cdp_issue)
 
@@ -272,27 +275,33 @@ class Scanner:
                 log(f"    [dim][CDP Log] source={source} text={text[:80]}[/dim]")
 
                 if source in ("security", "violation"):
-                    result.errors.append(PageError(
-                        error_type=ErrorType.CONSOLE_WARNING,
-                        message=f"CSP violation: {text}",
-                        source=url,
-                        line_number=line,
-                    ))
-                elif source == "intervention":
-                    result.errors.append(PageError(
-                        error_type=ErrorType.CONSOLE_WARNING,
-                        message=f"Intervention: {text}",
-                        source=url,
-                        line_number=line,
-                    ))
-                elif source == "deprecation":
-                    if self.console_level == "all":
-                        result.errors.append(PageError(
+                    result.errors.append(
+                        PageError(
                             error_type=ErrorType.CONSOLE_WARNING,
-                            message=f"Deprecation: {text}",
+                            message=f"CSP violation: {text}",
                             source=url,
                             line_number=line,
-                        ))
+                        )
+                    )
+                elif source == "intervention":
+                    result.errors.append(
+                        PageError(
+                            error_type=ErrorType.CONSOLE_WARNING,
+                            message=f"Intervention: {text}",
+                            source=url,
+                            line_number=line,
+                        )
+                    )
+                elif source == "deprecation":
+                    if self.console_level == "all":
+                        result.errors.append(
+                            PageError(
+                                error_type=ErrorType.CONSOLE_WARNING,
+                                message=f"Deprecation: {text}",
+                                source=url,
+                                line_number=line,
+                            )
+                        )
 
             cdp_client.on("Log.entryAdded", on_cdp_log)
 
@@ -316,12 +325,14 @@ class Scanner:
                 # error -> CONSOLE_ERROR, alles andere -> CONSOLE_WARNING
                 error_type = ErrorType.CONSOLE_ERROR if msg_type == "error" else ErrorType.CONSOLE_WARNING
 
-                result.errors.append(PageError(
-                    error_type=error_type,
-                    message=text,
-                    source=location.get("url", ""),
-                    line_number=location.get("lineNumber", 0),
-                ))
+                result.errors.append(
+                    PageError(
+                        error_type=error_type,
+                        message=text,
+                        source=location.get("url", ""),
+                        line_number=location.get("lineNumber", 0),
+                    )
+                )
 
             page.on("console", on_console)
 
@@ -330,12 +341,14 @@ class Scanner:
             # und werden NICHT ueber page.on("console") erfasst!
             def on_pageerror(error):
                 error_msg = str(error) if error else "(unknown error)"
-                result.errors.append(PageError(
-                    error_type=ErrorType.CONSOLE_ERROR,
-                    message=error_msg,
-                    source="",
-                    line_number=0,
-                ))
+                result.errors.append(
+                    PageError(
+                        error_type=ErrorType.CONSOLE_ERROR,
+                        message=error_msg,
+                        source="",
+                        line_number=0,
+                    )
+                )
 
             page.on("pageerror", on_pageerror)
 
@@ -360,23 +373,29 @@ class Scanner:
                     result.http_status_code = status
 
                 if status == 404:
-                    result.errors.append(PageError(
-                        error_type=ErrorType.HTTP_404,
-                        message=f"HTTP 404: {url}",
-                        source=url,
-                    ))
+                    result.errors.append(
+                        PageError(
+                            error_type=ErrorType.HTTP_404,
+                            message=f"HTTP 404: {url}",
+                            source=url,
+                        )
+                    )
                 elif 400 <= status < 500:
-                    result.errors.append(PageError(
-                        error_type=ErrorType.HTTP_4XX,
-                        message=f"HTTP {status}: {url}",
-                        source=url,
-                    ))
+                    result.errors.append(
+                        PageError(
+                            error_type=ErrorType.HTTP_4XX,
+                            message=f"HTTP {status}: {url}",
+                            source=url,
+                        )
+                    )
                 elif 500 <= status < 600:
-                    result.errors.append(PageError(
-                        error_type=ErrorType.HTTP_5XX,
-                        message=f"HTTP {status}: {url}",
-                        source=url,
-                    ))
+                    result.errors.append(
+                        PageError(
+                            error_type=ErrorType.HTTP_5XX,
+                            message=f"HTTP {status}: {url}",
+                            source=url,
+                        )
+                    )
 
             page.on("response", on_response)
 
@@ -391,12 +410,14 @@ class Scanner:
                 # Nur relevante Fehler erfassen, nicht Abbrueche durch Navigation
                 if "net::ERR_ABORTED" in failure_text:
                     return
-                result.errors.append(PageError(
-                    error_type=ErrorType.CONSOLE_WARNING,
-                    message=f"Request failed: {failure_text} - {url}",
-                    source=url,
-                    line_number=0,
-                ))
+                result.errors.append(
+                    PageError(
+                        error_type=ErrorType.CONSOLE_WARNING,
+                        message=f"Request failed: {failure_text} - {url}",
+                        source=url,
+                        line_number=0,
+                    )
+                )
 
             page.on("requestfailed", on_request_failed)
 
@@ -500,26 +521,26 @@ class Scanner:
         consent_selectors = [
             # Usercentrics Buttons
             '[data-testid="uc-accept-all-button"]',
-            '#uc-btn-accept-banner',
-            '.uc-btn-accept',
+            "#uc-btn-accept-banner",
+            ".uc-btn-accept",
             # OneTrust Buttons
-            '#onetrust-accept-btn-handler',
-            '.onetrust-close-btn-handler',
+            "#onetrust-accept-btn-handler",
+            ".onetrust-close-btn-handler",
             # CookieBot Buttons
-            '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
-            '#CybotCookiebotDialogBodyButtonAccept',
+            "#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll",
+            "#CybotCookiebotDialogBodyButtonAccept",
             # Generische Consent-Buttons
-            '[data-cookie-accept]',
-            '[data-consent-accept]',
+            "[data-cookie-accept]",
+            "[data-consent-accept]",
             'button[class*="accept"]',
             'button[class*="consent"]',
             'a[class*="accept"]',
-            '.cookie-accept',
-            '.cookie-consent-accept',
-            '#cookie-accept',
-            '#accept-cookies',
-            '.cc-accept',
-            '.cc-btn.cc-allow',
+            ".cookie-accept",
+            ".cookie-consent-accept",
+            "#cookie-accept",
+            "#accept-cookies",
+            ".cc-accept",
+            ".cc-btn.cc-allow",
         ]
 
         clicked = False

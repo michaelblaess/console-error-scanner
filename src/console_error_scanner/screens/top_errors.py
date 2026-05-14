@@ -4,16 +4,15 @@ from __future__ import annotations
 
 from collections import Counter
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
-from rich.text import Text
 
 from ..i18n import t
 from ..models.scan_result import ErrorType, ScanResult
-
 
 # Maximale Laenge fuer Fehlermeldungen in der Anzeige
 MAX_MSG_LEN = 80
@@ -105,8 +104,10 @@ class TopErrorsScreen(ModalScreen):
 
         # Gesamtzaehler
         total_errors = (
-            sum(console_counter.values()) + sum(warning_counter.values())
-            + sum(http_404_counter.values()) + sum(http_4xx_counter.values())
+            sum(console_counter.values())
+            + sum(warning_counter.values())
+            + sum(http_404_counter.values())
+            + sum(http_4xx_counter.values())
             + sum(http_5xx_counter.values())
         )
 
@@ -217,7 +218,7 @@ def _truncate(text: str, max_len: int) -> str:
     """
     if len(text) <= max_len:
         return text
-    return f"{text[:max_len - 3]}..."
+    return f"{text[: max_len - 3]}..."
 
 
 def _append_bar_entry(

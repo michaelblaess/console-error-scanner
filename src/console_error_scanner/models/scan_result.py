@@ -91,10 +91,7 @@ class ScanResult:
     @property
     def has_errors(self) -> bool:
         """Hat die Seite nicht-whitelisted echte Fehler (ohne Warnings)?"""
-        return any(
-            e.error_type in self._ERROR_TYPES and not e.whitelisted
-            for e in self.errors
-        )
+        return any(e.error_type in self._ERROR_TYPES and not e.whitelisted for e in self.errors)
 
     @property
     def has_issues(self) -> bool:
