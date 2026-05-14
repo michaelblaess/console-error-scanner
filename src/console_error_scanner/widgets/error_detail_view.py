@@ -332,10 +332,7 @@ def _shorten_url(url: str) -> str:
     if path_start >= 0:
         after_protocol = clean[path_start + 2 :]
         slash_pos = after_protocol.find("/")
-        if slash_pos >= 0:
-            path = after_protocol[slash_pos:]
-        else:
-            path = ""
+        path = after_protocol[slash_pos:] if slash_pos >= 0 else ""
     else:
         path = clean
 
