@@ -45,7 +45,7 @@ echo
 
 # --- Paket installieren ---
 echo "  Installiere Console Error Scanner + Abhaengigkeiten..."
-"$VENV_DIR/bin/pip" install -e "$SCRIPT_DIR" --quiet
+"$VENV_DIR/bin/pip" install --upgrade -e "$SCRIPT_DIR" --quiet
 echo "  [OK] Console Error Scanner installiert"
 echo
 

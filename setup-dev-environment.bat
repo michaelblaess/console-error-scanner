@@ -54,7 +54,7 @@ echo.
 
 REM --- Paket installieren ---
 echo  Installiere Console Error Scanner + Abhaengigkeiten...
-"%VENV_DIR%\Scripts\pip.exe" install -e "%~dp0." --quiet
+"%VENV_DIR%\Scripts\pip.exe" install --upgrade -e "%~dp0." --quiet
 if errorlevel 1 (
     echo  [FEHLER] Installation fehlgeschlagen!
     pause
