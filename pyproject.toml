@@ -13,6 +13,7 @@ dependencies = [
     "playwright>=1.40",
     "httpx>=0.25",
     "textual-themes @ git+https://github.com/michaelblaess/textual-themes.git",
+    "textual-widgets @ git+https://github.com/michaelblaess/textual-widgets.git",
 ]
 
 [project.optional-dependencies]
