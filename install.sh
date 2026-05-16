@@ -26,34 +26,26 @@ echo "  ╚═══════════════════════
 echo
 
 # --- OS und Architektur erkennen ---
-OS="$(uname -s)"
-ARCH="$(uname -m)"
+os="$(uname -s)"; arch="$(uname -m)"
 
-case "$OS" in
-    Linux*)  PLATFORM="linux" ;;
-    Darwin*) PLATFORM="macos" ;;
+case "$os" in
+    Linux)  os_key="linux" ;;
+    Darwin) os_key="macos" ;;
     *)
-        echo "  [FEHLER] Nicht unterstuetztes OS: $OS"
+        echo "  [FEHLER] Nicht unterstuetztes Betriebssystem: $os"
         echo "  Unterstuetzt: Linux, macOS"
         echo "  Fuer Windows: irm ...install.ps1 | iex"
         exit 1
         ;;
 esac
 
-case "$ARCH" in
-    x86_64|amd64)    ARCH_SUFFIX="x64" ;;
-    aarch64|arm64)   ARCH_SUFFIX="arm64" ;;
-    *)
-        echo "  [FEHLER] Nicht unterstuetzte Architektur: $ARCH"
-        exit 1
-        ;;
+case "$arch" in
+    x86_64|amd64)  arch_key="x86_64" ;;
+    arm64|aarch64) arch_key="arm64" ;;
+    *) arch_key="$arch" ;;
 esac
 
-# Artifact-Name bestimmen
-ARTIFACT="console-error-scanner-${PLATFORM}-${ARCH_SUFFIX}"
-ARCHIVE="${ARTIFACT}.tar.gz"
-
-echo "  Plattform: $PLATFORM ($ARCH_SUFFIX)"
+echo "  Plattform: $os_key ($arch_key)"
 echo
 
 # --- curl oder wget pruefen ---
@@ -85,18 +77,30 @@ else
     }
 fi
 
-# Download-URL aus JSON extrahieren (ohne jq)
-DOWNLOAD_URL=$(echo "$RELEASE_JSON" | grep -o "\"browser_download_url\": *\"[^\"]*${ARCHIVE}\"" | grep -o "https://[^\"]*")
+# Asset versionsunabhaengig per OS+Arch waehlen (ohne jq)
+candidates=("${os_key}-${arch_key}")
+[ "$os_key" = "macos" ] && [ "$arch_key" = "arm64" ] && candidates+=("macos-x86_64")
+
+urls="$(echo "$RELEASE_JSON" | grep -oE '"browser_download_url": *"[^"]*"' \
+        | sed -E 's/.*"(https[^"]*)"/\1/')"
+DOWNLOAD_URL=""
+for want in "${candidates[@]}"; do
+    DOWNLOAD_URL="$(echo "$urls" | grep -E "${want}[^/]*\.(zip|tar\.gz)$" | head -1)"
+    [ -n "$DOWNLOAD_URL" ] && break
+done
 
 if [ -z "$DOWNLOAD_URL" ]; then
-    echo "  [FEHLER] Kein Release fuer ${ARCHIVE} gefunden!"
+    echo "  [FEHLER] Kein passendes Asset fuer ${os_key}-${arch_key} gefunden!"
     echo
     echo "  Verfuegbare Assets:"
-    echo "$RELEASE_JSON" | grep -o '"browser_download_url": *"[^"]*"' | sed 's/.*: *"/    /' | sed 's/"//'
+    echo "$urls" | sed 's#.*/#    #'
     echo
     echo "  Moeglicherweise gibt es noch kein Release fuer deine Plattform."
     exit 1
 fi
+
+# Archivname fuer Temp-Datei aus der URL ableiten
+ARCHIVE="$(basename "$DOWNLOAD_URL")"
 
 # Version extrahieren
 VERSION=$(echo "$RELEASE_JSON" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/.*: *"//' | sed 's/"//')
