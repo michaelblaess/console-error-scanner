@@ -15,6 +15,8 @@ if getattr(sys, "frozen", False):
     if os.path.isdir(_browsers_dir):
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = _browsers_dir
 
+from textual_widgets import reset_terminal_title, set_terminal_title
+
 from console_error_scanner import __version__
 from console_error_scanner.i18n import SUPPORTED_LANGUAGES, load_locale
 from console_error_scanner.models.settings import Settings
@@ -152,22 +154,27 @@ def main() -> None:
     # App NACH load_locale importieren — t() ist sofort verfuegbar
     from console_error_scanner.app import ConsoleErrorScannerApp
 
-    app = ConsoleErrorScannerApp(
-        sitemap_url=args.sitemap_url,
-        concurrency=args.concurrency,
-        timeout=args.timeout,
-        output_json=args.output_json,
-        output_html=args.output_html,
-        headless=not args.no_headless,
-        url_filter=args.filter,
-        console_level=args.console_level,
-        user_agent=args.user_agent,
-        cookies=cookies,
-        whitelist_path=args.whitelist,
-        accept_consent=not args.no_consent if args.no_consent is not None else None,
-        trigger_lazy_load=not args.no_scroll if args.no_scroll is not None else None,
-    )
-    app.run()
+    # Terminal-Tab-Titel setzen - Textual macht das nicht selbst.
+    set_terminal_title(f"✗ console-error-scanner v{__version__}")
+    try:
+        app = ConsoleErrorScannerApp(
+            sitemap_url=args.sitemap_url,
+            concurrency=args.concurrency,
+            timeout=args.timeout,
+            output_json=args.output_json,
+            output_html=args.output_html,
+            headless=not args.no_headless,
+            url_filter=args.filter,
+            console_level=args.console_level,
+            user_agent=args.user_agent,
+            cookies=cookies,
+            whitelist_path=args.whitelist,
+            accept_consent=not args.no_consent if args.no_consent is not None else None,
+            trigger_lazy_load=not args.no_scroll if args.no_scroll is not None else None,
+        )
+        app.run()
+    finally:
+        reset_terminal_title()
 
 
 def _usage_examples() -> str:
