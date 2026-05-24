@@ -48,6 +48,15 @@ $started = Get-Date
 # eingebautes playwright-Plugin. Ein zusaetzliches --include-package-data=
 # playwright kollidiert unter Linux mit dem Plugin ("data file
 # 'playwright/driver/node' conflicts with exe").
+# Nuitka als Build-Tool sicherstellen (kein Dev-Dep, wird ad-hoc installiert).
+# 'uv sync' ohne --inexact entfernt es wieder, daher: nach jedem Sync pruefen.
+& $python -m nuitka --version 2>$null 1>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Nuitka fehlt im venv - installiere..." -ForegroundColor Yellow
+    & uv pip install nuitka
+    if ($LASTEXITCODE -ne 0) { throw "Nuitka-Installation fehlgeschlagen" }
+}
+
 & $python -m nuitka `
     --standalone `
     --assume-yes-for-downloads `
