@@ -115,22 +115,24 @@ console-error-scanner https://www.example.com --no-headless
 
 ## CLI-Parameter
 
+CLI-Flags überschreiben die persistierten Einstellungen für den aktuellen Lauf. Alles außer der URL hat einen sinnvollen Default in `~/.console-error-scanner/settings.json` und ist auch zur Laufzeit über den Einstellungs-Dialog (`s`) erreichbar.
+
 | Parameter | Kurz | Default | Beschreibung |
 |-----------|------|---------|-------------|
-| `URL` | | (pflicht) | URL der Website oder Sitemap (XML). Bei Domain-URLs wird die Sitemap automatisch gesucht |
-| `--concurrency` | `-c` | 8 | Max parallele Browser-Tabs |
-| `--timeout` | `-t` | 60 | Timeout pro Seite in Sekunden |
-| `--output-json` | | | JSON-Report automatisch speichern |
-| `--output-html` | | | HTML-Report automatisch speichern |
-| `--lang` | | de | Sprache der Oberfläche (de, en) |
-| `--no-headless` | | false | Browser sichtbar starten |
+| `URL_OR_FILE` | | (optional) | Website-URL, Sitemap-URL oder lokale sitemap.xml. Bei Domain-URLs wird die Sitemap automatisch gesucht. Ohne Argument fragt die TUI die URL beim ersten `c` ab |
+| `--concurrency` | `-c` | Settings (8) | Max parallele Browser-Tabs |
+| `--timeout` | `-t` | Settings (60) | Timeout pro Seite in Sekunden |
+| `--output-json` | | | JSON-Report automatisch speichern und beenden |
+| `--output-html` | | | HTML-Report automatisch speichern und beenden |
+| `--lang` | | Settings (de) | Sprache der Oberfläche (de, en) |
+| `--no-headless` | | false | Browser sichtbar starten (Debugging) |
 | `--filter` | `-f` | | Nur URLs scannen die TEXT enthalten |
-| `--console-level` | | warn | error, warn, all |
+| `--console-level` | | Settings (warn) | error, warn, all |
 | `--user-agent` | | Chrome 131 | Custom User-Agent String |
 | `--cookie` | | | Cookie setzen (NAME=VALUE), mehrfach verwendbar |
-| `--whitelist` | `-w` | | Pfad zur Whitelist-JSON (bekannte Fehler ignorieren) |
+| `--whitelist` | `-w` | Settings | Pfad zur Whitelist-JSON (bekannte Fehler ignorieren) |
 | `--no-consent` | | false | Cookie-Consent NICHT akzeptieren (Banner wird nur versteckt) |
-| `--no-scroll` | | false | Seite nicht scrollen (kein Lazy-Loading Trigger) |
+| `--no-scroll` | | false | Seite nicht scrollen (kein Lazy-Loading-Trigger) |
 
 ### Console-Level
 
@@ -138,39 +140,57 @@ console-error-scanner https://www.example.com --no-headless
 - **warn** - `console.error()` + `console.warn()` (Standard)
 - **all** - Alle Console-Ausgaben (`error`, `warn`, `info`, `log`, `debug`)
 
+> Info/Log/Debug werden **NICHT** erfasst, solange das Level auf `warn` steht.
+
 ## Features
 
 - **Sitemap Auto-Discovery**: Bei Domain-URLs wird die Sitemap automatisch über robots.txt und typische Pfade (/sitemap.xml, /sitemap/sitemap.xml, ...) gefunden. Falls keine Sitemap vorhanden ist, kann mit dem [Sitemap Generator](https://michaelblaess.github.io/sitemap-generator) eine erstellt und als URL übergeben werden
-- **Lazy-Loading Trigger**: Scrollt Seiten automatisch durch, um per IntersectionObserver nachgeladene Bilder zu triggern. Erkennt fehlende Bilder (404) unterhalb des Viewports. Per `g`-Taste oder `--no-scroll` umschaltbar
-- **Consent-Banner Behandlung**: 3-Phasen-Consent (JavaScript-API, Button-Klick Fallback, CSS-Hide) für Usercentrics, OneTrust, CookieBot und generische Banner. Per `n`-Taste oder `--no-consent` umschaltbar zwischen Akzeptieren und nur Verstecken
+- **Sitemap-Datei-Picker**: `m` öffnet einen Datei-Dialog ([textual-fspicker](https://github.com/davep/textual-fspicker)) für lokale sitemap.xml-Dateien — Alternative zur URL-Eingabe
+- **Seiten-Vorschau**: Optionaler Playwright-Sidecar rendert in der Detail-Ansicht einen Screenshot der markierten URL (TGP/Sixel-Terminals) mit persistentem Disk-Cache (HTTP-Validator + TTL). Rechtsklick auf das Bild kopiert es in die Zwischenablage (Drag-and-Drop in JIRA / Slack)
+- **Rechtsklick-Kontextmenü** auf Ergebniszeilen: URL im Browser öffnen, URL kopieren, Details anzeigen/kopieren, URL erneut scannen, Nur-Fehler-Filter
+- **Sortierbare Spalten**: Klick auf einen Spaltenkopf sortiert auf-/absteigend mit ▲/▼-Indikator
+- **Lazy-Loading Trigger**: Scrollt Seiten automatisch durch, um per IntersectionObserver nachgeladene Bilder zu triggern. Erkennt fehlende Bilder (404) unterhalb des Viewports
+- **Consent-Banner Behandlung**: 3-Phasen-Consent (JavaScript-API, Button-Klick Fallback, CSS-Hide) für Usercentrics, OneTrust, CookieBot und generische Banner. Settings-Toggle zwischen Akzeptieren und nur Verstecken
 - **CSP-Violation Erkennung**: Erkennt Content Security Policy Verstöße via `pageerror` Events
 - **Fehlgeschlagene Requests**: Erkennt abgebrochene/fehlgeschlagene Netzwerk-Requests
-- **Cookie-Authentifizierung**: Zugriff auf geschützte Testumgebungen per `--cookie` Parameter
-- **Whitelist**: Bekannte Fehler per Wildcard-Pattern ignorieren (z.B. attachShadow, AppInsights)
+- **Cookie-Authentifizierung**: Zugriff auf geschützte Testumgebungen
+- **Whitelist**: Bekannte Fehler per Wildcard-Pattern ignorieren (z.B. attachShadow, AppInsights). Mit `w` öffnet sich der Whitelist-Viewer mit Pattern-Liste und Trefferzahlen
+- **Hover-klickbare Links** überall: jede URL und jeder Pfad in Logs, Detail-Ansicht, Dialogen und Toasts öffnet im OS-Standard-Browser/Dateimanager — kein STRG nötig
+- **Einstellungs-Dialog** (`s`): zentrale Konfiguration für Concurrency, Timeout, Console-Level, Headless, Consent, Lazy-Loading, Whitelist-Pfad, User-Agent, Cookies, Seiten-Vorschau — mit Info-Icon-Tooltips und Speicherort-Tab
 - **Live-Updates**: Ergebnisse erscheinen sofort während des Scans in der Tabelle
 - **Auto-Scroll**: Tabelle scrollt automatisch zur aktuell gescannten URL mit
+- **36 Retro-Themes**: Ctrl+P öffnet den Theme-Picker, `t` schaltet zum nächsten weiter (persistent)
 - **Mehrsprachig**: Deutsch und Englisch (`--lang en`), alle UI-Texte über JSON-Sprachdateien
-- **Settings-Persistenz**: Theme, Consent-Modus, Scroll-Modus und Sprache werden gespeichert
-- **Scan-History**: Vorherige Scans können per `h`-Taste wiederhergestellt werden
+- **Crash-Guard**: Unbehandelte Exceptions zeigen einen kopierbaren Fehler-Dialog statt die App abstürzen zu lassen
+- **Scan-History**: Vorherige Scan-URLs können per `h` wiederhergestellt werden
 
 ## Tastenkürzel in der TUI
 
+Die Bindings sind über alle TUIs von Michael einheitlich (`c` = Crawl, `s` = Settings, `t` = Theme, ...).
+
 | Taste | Aktion |
 |-------|--------|
-| `s` | Scan starten |
+| `c` | Scan starten (fragt URL ab, wenn keine geladen ist) |
+| `m` | Lokale Sitemap-Datei via Datei-Dialog laden |
+| `s` | Einstellungs-Dialog |
+| `h` | Scan-History |
 | `r` | HTML + JSON Reports speichern |
-| `t` | Top 10 Fehler anzeigen |
-| `h` | Scan-History anzeigen |
-| `n` | Consent-Toggle (AN = akzeptieren, AUS = nur Banner verstecken) |
-| `g` | Scroll-Toggle (AN = Lazy-Loading triggern, AUS = nicht scrollen) |
-| `l` | Log-Bereich ein/ausblenden |
-| `e` | Nur fehlerhafte URLs anzeigen |
-| `c` | Log in Zwischenablage kopieren |
+| `w` | Geladene Whitelist-Patterns + Trefferzahlen anzeigen |
+| `e` | Nur Seiten mit Fehlern anzeigen (Toggle) |
+| `t` | Zum nächsten Retro-Theme wechseln (Ctrl+P für vollen Picker) |
+| `l` | Log-Panel ein-/ausblenden (Splitter zum Resizen ziehen) |
+| `d` | Detail-Ansicht in Zwischenablage kopieren |
+| `F10` | Top-10-Fehler-Diagramm |
 | `/` | Filter-Eingabe fokussieren |
-| `ESC` | Filter leeren |
-| `+` / `-` | Log-Bereich vergrößern/verkleinern |
-| `i` | Info-Dialog |
+| `ESC` | Filter leeren / Dialog schließen |
+| `i` | About-Dialog |
 | `q` | Beenden |
+
+**Auf dem Vorschau-Bild** (wenn Seiten-Vorschau in den Settings aktiviert ist):
+- Rechtsklick = Screenshot in die Zwischenablage kopieren
+- Umschalt + Rechtsklick = Screenshot als PNG-Datei speichern
+
+**Auf einer Ergebniszeile** (Rechtsklick): Kontextmenü mit `URL im Browser öffnen`, `URL kopieren`, `Details anzeigen`, `Details kopieren`, `URL erneut scannen`, `Nur Fehler anzeigen / Alle anzeigen`.
 
 ## Whitelist
 
@@ -205,6 +225,8 @@ Mit einer Whitelist-Datei können bekannte, irrelevante Fehler ignoriert werden.
 
 Eine Beispiel-Whitelist liegt im Repository unter `whitelist.json`.
 
+Der Whitelist-Pfad wird im Einstellungs-Dialog konfiguriert (`s` → Whitelist-Pfad) und persistiert; alternativ per `--whitelist <pfad>` auf der CLI. Mit `w` in der TUI öffnet sich der **Whitelist-Viewer** — ein Modal, das jedes geladene Pattern mit der Anzahl der Treffer auf den aktuellen Scan anzeigt.
+
 ## Browser-Strategie
 
 Der Scanner versucht beim Start den **System-Chrome** zu nutzen (`channel="chrome"`).
@@ -231,49 +253,44 @@ Falls Chrome nicht installiert ist, wird das **gebundelte Chromium** als Fallbac
 
 ```bash
 # Windows
-setup-dev-environment.bat
-run.bat https://www.example.com
+./bootstrap.ps1
+./run.ps1 https://www.example.com
 
 # Linux/macOS
-./setup-dev-environment.sh
+./bootstrap.sh
 ./run.sh https://www.example.com
 ```
 
-Das Setup erstellt eine virtuelle Umgebung (`.venv`), installiert alle Abhängigkeiten und lädt den Chromium-Browser herunter.
-
-Voraussetzungen: Python 3.10+
+Das Bootstrap-Skript verwendet `uv`, um eine virtuelle Umgebung (`.venv`) zu erstellen, Runtime- und Dev-Dependencies aus `uv.lock` zu installieren, Nuitka fürs Bauen einzurichten und den Chromium-Browser herunterzuladen. Voraussetzungen: Python 3.12+ und [uv](https://docs.astral.sh/uv/).
 
 #### Manuelle Installation
 
 ```bash
 # 1. Virtuelle Umgebung erstellen
-python -m venv .venv
-.venv\Scripts\activate    # Windows
-source .venv/bin/activate  # Linux/macOS
+uv sync --extra dev
 
-# 2. Paket installieren
-pip install -e .
-
-# 3. Playwright Chromium-Browser installieren
-playwright install chromium
+# 2. Playwright Chromium-Browser installieren
+uv run playwright install chromium
 ```
 
-Bei SSL-Problemen im Firmennetz:
-```bash
-pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -e .
-```
+Bei SSL-Problemen im Firmennetz (Zscaler etc.) siehe `bootstrap.ps1`: `UV_NATIVE_TLS=1` setzen, `SSL_CERT_FILE` leeren, dann fällt uv auf den Windows-Zertifikatsspeicher zurück.
 
-### Lokaler Build (Standalone-EXE)
+### Lokaler Build (Standalone-Binary)
+
+Der Build basiert auf **Nuitka** (kompiliert Python zu einer nativen Binary, kein Interpreter auf dem Zielrechner):
 
 ```bash
 # Windows
-build-dist.bat
+./compile-win64.ps1
 
-# Linux/macOS
-./build-dist.sh
+# Linux  (benötigt gcc + patchelf + python3-dev)
+./compile-linux.sh
+
+# macOS  (benötigt Xcode Command Line Tools)
+./compile-macos.sh
 ```
 
-Erstellt `dist/console-error-scanner/` - den Ordner zippen und weitergeben. Kein Python nötig auf dem Zielrechner.
+Erstellt `dist/console-error-scanner/` (~180 MB inkl. Chromium Headless-Shell) und ein versionsbenanntes `.zip` / `.tar.gz` daneben.
 
 ### Release erstellen
 
@@ -294,29 +311,43 @@ Erstellt `dist/console-error-scanner/` - den Ordner zippen und weitergeben. Kein
 
 ```
 src/console_error_scanner/
-  __main__.py           CLI Entry Point (argparse)
-  app.py                Textual App (Hauptklasse)
+  __main__.py           CLI Entry Point (argparse, pre-init textual-image)
+  app.py                Textual App (CrashGuard, LogRouter, ClickableLinks)
   app.tcss              Textual CSS (Layout)
-  models/
-    scan_result.py      ScanResult, PageError, Enums
-    sitemap.py          Sitemap-Parser + Auto-Discovery
-    history.py          Scan-History Persistenz
-    settings.py         Settings Persistenz (Theme, Consent, Scroll)
-    whitelist.py        Whitelist (Wildcard-Pattern Matching)
   i18n.py               Internationalisierung (t()-Funktion)
   locale/
     de.json             Deutsche Sprachdatei
     en.json             Englische Sprachdatei
+  models/
+    scan_result.py      ScanResult, PageError, Enums (response_headers, content_type, last_modified)
+    sitemap.py          Sitemap-Parser + Auto-Discovery
+    history.py          Scan-History Persistenz
+    settings.py         Settings (theme, language, concurrency, timeout, console_level,
+                        consent, lazy_load, whitelist, headless, preview, ...)
+    whitelist.py        Whitelist (Wildcard-Pattern Matching)
   widgets/
-    results_table.py    DataTable mit Filter + Auto-Scroll
-    error_detail_view.py  Detail-Ansicht rechts
-    summary_panel.py    Zusammenfassung oben
+    results_table.py    ResultsDataTable (Rechtsklick-Kontextmenü, sortierbare Spalten) +
+                        SearchInputWithHistory-Filter + Auto-Scroll
+    stats_panel.py      Detail-Pane: Page / HTTP-Header (collapsible) / Errors /
+                        Warnings / Whitelist / Info Rich-Panels
+    preview_panel.py    Screenshot-Vorschau via textual-image (TGP/Sixel) oder Halfblock
+    summary_panel.py    InfoHeader oben (4 Spalten: Ziel / Konfig / Fehler / Fortschritt)
   screens/
-    error_detail.py     Modal: Fehlerdetails
-    top_errors.py       Modal: Top 10 Fehler Chart
-    history.py          Modal: Scan-History
-    about.py            Modal: About-Dialog
+    error_detail.py     Modal: Fehlerdetails (Markup + Hover-Links + Close-Button)
+    top_errors.py       Modal: Top-10-Fehler-Chart (auto-height + Close-Button)
+    history.py          Modal: Scan-History (Auswählen + Schließen-Buttons)
+    whitelist.py        Modal: Whitelist-Viewer (Patterns + Trefferzahlen)
+    settings.py         BaseSettingsScreen: Scanner-Tab + Sprach-Tab + Speicherort-Tab
   services/
-    scanner.py          Playwright Scanner (Retry, Recovery)
+    scanner.py          Playwright Scanner (Retry, Recovery, Response-Headers)
     reporter.py         HTML + JSON Report-Generator
+    preview_service.py  Playwright-Sidecar + Disk-Cache für Vorschau-Screenshots
+    image_clipboard.py  Cross-Plattform Image-to-Clipboard (Win: pywin32, macOS: osascript,
+                        Linux: xclip/wl-copy)
 ```
+
+Basiert auf [textual-themes](https://github.com/michaelblaess/textual-themes) (36 Retro-Paletten),
+[textual-widgets](https://github.com/michaelblaess/textual-widgets) (CrashGuard, LogPanel,
+BaseSettingsScreen, AboutScreen, UrlInputScreen, ContextMenuScreen, Splitter, InfoHeader,
+ClickableLinksMixin) und [textual-fspicker](https://github.com/davep/textual-fspicker)
+(FileOpen-Dialog).
