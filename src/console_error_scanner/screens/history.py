@@ -6,11 +6,12 @@ eines ausgewaehlten Scans.
 
 from __future__ import annotations
 
+from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import DataTable, Static
+from textual.widgets import Button, DataTable, Static
 
 from ..i18n import t
 from ..models.history import History, HistoryEntry
@@ -57,11 +58,14 @@ class HistoryScreen(ModalScreen[HistoryEntry | None]):
         height: 1fr;
     }
 
-    HistoryScreen #history-footer {
-        height: 1;
-        content-align: center middle;
-        color: $text-muted;
+    HistoryScreen #history-buttons {
+        height: 3;
+        align: center middle;
         margin-top: 1;
+    }
+
+    HistoryScreen #history-buttons Button {
+        margin: 0 1;
     }
     """
 
@@ -131,7 +135,9 @@ class HistoryScreen(ModalScreen[HistoryEntry | None]):
 
                 yield table
 
-            yield Static(t("history.footer"), id="history-footer")
+            with Horizontal(id="history-buttons"):
+                yield Button(t("history.btn_select"), variant="primary", id="history-select")
+                yield Button(t("history.btn_close"), variant="default", id="history-close")
 
     def on_mount(self) -> None:
         """Fokussiert die Tabelle nach dem Oeffnen."""
@@ -143,7 +149,7 @@ class HistoryScreen(ModalScreen[HistoryEntry | None]):
                 pass
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Verarbeitet die Auswahl einer Zeile.
+        """Verarbeitet die Auswahl einer Zeile (Enter/Doppelklick).
 
         Args:
             event: Das RowSelected-Event mit dem Key der Zeile.
@@ -155,6 +161,27 @@ class HistoryScreen(ModalScreen[HistoryEntry | None]):
         except (ValueError, IndexError):
             pass
 
+    @on(Button.Pressed, "#history-select")
+    def _on_select_button(self) -> None:
+        """Übernimmt die markierte Zeile."""
+        if not self._entries:
+            self.dismiss(None)
+            return
+        try:
+            table = self.query_one("#history-table", DataTable)
+            row = table.cursor_row
+            if 0 <= row < len(self._entries):
+                self.dismiss(self._entries[row])
+                return
+        except Exception:
+            pass
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#history-close")
+    def _on_close_button(self) -> None:
+        """Schließt den Dialog ohne Auswahl."""
+        self.dismiss(None)
+
     def action_close(self) -> None:
-        """Schliesst den Dialog ohne Auswahl."""
+        """Schließt den Dialog ohne Auswahl (ESC/q)."""
         self.dismiss(None)

@@ -59,6 +59,10 @@ class ScanResult:
     page_size_bytes: int = 0
     errors: list[PageError] = field(default_factory=list)
     retry_count: int = 0
+    # HTTP-Response-Daten der Hauptseite (Document)
+    response_headers: dict[str, str] = field(default_factory=dict)
+    content_type: str = ""
+    last_modified: str = ""
 
     @property
     def console_error_count(self) -> int:

@@ -5,11 +5,12 @@ from __future__ import annotations
 from collections import Counter
 
 from rich.text import Text
+from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import VerticalScroll
+from textual.containers import Horizontal, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Static
+from textual.widgets import Button, Static
 
 from ..i18n import t
 from ..models.scan_result import ErrorType, ScanResult
@@ -31,7 +32,8 @@ class TopErrorsScreen(ModalScreen):
     TopErrorsScreen > VerticalScroll {
         width: 90%;
         max-width: 120;
-        height: 85%;
+        height: auto;
+        max-height: 90%;
         background: $surface;
         border: thick $accent;
         padding: 1 2;
@@ -42,15 +44,22 @@ class TopErrorsScreen(ModalScreen):
         content-align: center middle;
         text-style: bold;
         background: $accent;
-        color: $text;
+        color: auto;
         margin-bottom: 1;
     }
 
-    TopErrorsScreen #top-footer {
-        height: 1;
-        content-align: center middle;
-        color: $text-muted;
+    TopErrorsScreen #top-content {
+        height: auto;
+    }
+
+    TopErrorsScreen #top-buttons {
+        height: 3;
+        align: center middle;
         margin-top: 1;
+    }
+
+    TopErrorsScreen #top-buttons Button {
+        margin: 0 1;
     }
     """
 
@@ -68,7 +77,12 @@ class TopErrorsScreen(ModalScreen):
         with VerticalScroll():
             yield Static(t("top_errors.title"), id="top-title")
             yield Static(self._build_chart(), id="top-content")
-            yield Static(t("top_errors.footer"), id="top-footer")
+            with Horizontal(id="top-buttons"):
+                yield Button(t("binding.close"), variant="primary", id="top-close")
+
+    @on(Button.Pressed, "#top-close")
+    def _on_close_button(self) -> None:
+        self.dismiss()
 
     def _build_chart(self) -> Text:
         """Erstellt das Balkendiagramm der Top-10-Fehler.

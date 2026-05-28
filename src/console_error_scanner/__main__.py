@@ -9,7 +9,6 @@ import sys
 # Frozen-EXE Erkennung (PyInstaller UND Nuitka):
 # PLAYWRIGHT_BROWSERS_PATH muss gesetzt werden BEVOR playwright importiert wird,
 # damit das gebundelte Chromium im "browsers"-Unterordner gefunden wird.
-# PyInstaller setzt sys.frozen, Nuitka setzt stattdessen __compiled__.
 _is_frozen = getattr(sys, "frozen", False) or "__compiled__" in globals()
 if _is_frozen:
     _exe_dir = os.path.dirname(sys.executable)
@@ -26,7 +25,6 @@ from console_error_scanner.models.settings import Settings
 
 def main() -> None:
     """Haupteinstiegspunkt fuer die CLI."""
-    # Settings vorab laden um gespeicherte Sprache zu kennen
     settings = Settings.load()
     saved_lang = settings.language
 
@@ -42,23 +40,27 @@ def main() -> None:
         nargs="?",
         default="",
         metavar="URL_OR_FILE",
-        help="URL der Website, Sitemap-URL oder lokale sitemap.xml Datei. Bei Domain-URLs wird die Sitemap automatisch gesucht.",
+        help=(
+            "URL der Website, Sitemap-URL oder lokale sitemap.xml. "
+            "Bei Domain-URLs wird die Sitemap automatisch gesucht. "
+            "Ohne Argument fragt die App die URL beim ersten 's' ab."
+        ),
     )
     parser.add_argument(
         "--concurrency",
         "-c",
         type=int,
-        default=8,
+        default=None,
         metavar="N",
-        help="Max parallele Browser-Tabs (default: 8)",
+        help="Max parallele Browser-Tabs (Default aus Settings)",
     )
     parser.add_argument(
         "--timeout",
         "-t",
         type=int,
-        default=60,
+        default=None,
         metavar="SEC",
-        help="Timeout pro Seite in Sekunden (default: 60)",
+        help="Timeout pro Seite in Sekunden (Default aus Settings)",
     )
     parser.add_argument(
         "--output-json",
@@ -87,42 +89,42 @@ def main() -> None:
     )
     parser.add_argument(
         "--console-level",
-        default="warn",
-        choices=["error", "warn", "all"],
+        default="",
+        choices=["", "error", "warn", "all"],
         metavar="LEVEL",
-        help="Console-Level: error | warn (default) | all",
+        help="Console-Level: error | warn | all (Default aus Settings)",
     )
     parser.add_argument(
         "--user-agent",
         default="",
         metavar="UA",
-        help="Custom User-Agent String (default: Chrome 131)",
+        help="Custom User-Agent String (Default: realistischer Chrome)",
     )
     parser.add_argument(
         "--cookie",
         action="append",
         default=[],
         metavar="NAME=VALUE",
-        help="Cookie setzen (z.B. --cookie auth=token). Mehrfach verwendbar.",
+        help="Cookie setzen (mehrfach moeglich). Default aus Settings.",
     )
     parser.add_argument(
         "--whitelist",
         "-w",
         default="",
         metavar="PATH",
-        help="Pfad zur Whitelist-JSON (bekannte Fehler ignorieren)",
+        help="Pfad zur Whitelist-JSON (Default aus Settings)",
     )
     parser.add_argument(
         "--no-consent",
         action="store_true",
         default=None,
-        help="Cookie-Consent NICHT akzeptieren (Banner wird nur versteckt)",
+        help="Cookie-Consent NICHT akzeptieren (nur Banner verstecken)",
     )
     parser.add_argument(
         "--no-scroll",
         action="store_true",
         default=None,
-        help="Seite nicht scrollen (kein Lazy-Loading Trigger)",
+        help="Seite nicht scrollen (kein Lazy-Loading-Trigger)",
     )
     parser.add_argument(
         "--lang",
@@ -153,10 +155,15 @@ def main() -> None:
         name, value = cookie_str.split("=", 1)
         cookies.append({"name": name.strip(), "value": value.strip()})
 
-    # App NACH load_locale importieren — t() ist sofort verfuegbar
+    # textual-image (TGP/Sixel) eager initialisieren, sobald das Terminal
+    # Grafik-faehig ist - egal ob Vorschau aktuell an oder aus ist. Sonst
+    # leaken die DA1-/Cell-Size-Query-Antworten beim spaeteren Aktivieren der
+    # Vorschau in den fokussierten Input (Filter-Suche).
+    _preinit_graphics_backend()
+
+    # App NACH load_locale importieren - t() ist sofort verfuegbar
     from console_error_scanner.app import ConsoleErrorScannerApp
 
-    # Terminal-Tab-Titel setzen - Textual macht das nicht selbst.
     set_terminal_title(f"✗ console-error-scanner v{__version__}")
     try:
         app = ConsoleErrorScannerApp(
@@ -171,12 +178,62 @@ def main() -> None:
             user_agent=args.user_agent,
             cookies=cookies,
             whitelist_path=args.whitelist,
-            accept_consent=not args.no_consent if args.no_consent is not None else None,
-            trigger_lazy_load=not args.no_scroll if args.no_scroll is not None else None,
+            accept_consent=(not args.no_consent) if args.no_consent is not None else None,
+            trigger_lazy_load=(not args.no_scroll) if args.no_scroll is not None else None,
         )
         app.run()
     finally:
         reset_terminal_title()
+
+
+def _preinit_graphics_backend() -> None:
+    """Eager-Import textual-image vor App-Start.
+
+    textual-image sendet beim Import Escape-Queries ans Terminal (DA1
+    Primary Device Attributes, Cell-Size-Query). Diese MUESSEN vor
+    `App.run()` laufen, damit die Antworten von der Library konsumiert
+    werden und nicht in Textual-Inputs landen (typischer Effekt: kryptische
+    `[?61;...c<35;...M`-Strings im Filter-Eingabefeld).
+
+    Wir laufen NUR, wenn das Terminal ueberhaupt ein Grafik-Protokoll
+    unterstuetzen koennte (TGP/Sixel) - sonst spart das den Import auf
+    "dummen" Terminals (SSH ohne Mux, dumb-tty etc.).
+    """
+    if not _terminal_supports_graphics():
+        return
+    try:
+        import time
+
+        import textual_image.renderable  # noqa: F401
+        import textual_image.widget  # noqa: F401
+        from textual_image._terminal import get_cell_size
+
+        get_cell_size()
+        # Kurze Pause, damit das Terminal Zeit hat die Probe-Queries zu
+        # beantworten BEVOR Textual stdin uebernimmt - sonst hat man die
+        # Antworten zwar abgeschickt, sie kommen aber erst zurueck wenn
+        # der Cooked-Mode schon zu ist (Windows Terminal/mintty sind hier
+        # spuerbar langsamer als ein lokales xterm).
+        time.sleep(0.15)
+    except Exception:
+        pass
+
+
+def _terminal_supports_graphics() -> bool:
+    """Schnelle Heuristik: kann das Terminal evtl. TGP oder Sixel?"""
+    term = os.environ.get("TERM", "").lower()
+    term_program = os.environ.get("TERM_PROGRAM", "").lower()
+    if os.environ.get("KITTY_WINDOW_ID"):
+        return True
+    if "kitty" in term or "ghostty" in term:
+        return True
+    if term_program in ("wezterm", "ghostty", "mintty", "iterm.app"):
+        return True
+    if os.environ.get("KONSOLE_VERSION"):
+        return True
+    if os.environ.get("WT_SESSION"):
+        return True
+    return term in ("foot", "xterm", "mlterm", "mintty") or "foot" in term
 
 
 def _usage_examples() -> str:
@@ -189,10 +246,10 @@ Examples:
   console-error-scanner https://example.com --concurrency 12
   console-error-scanner https://example.com --lang en
 
-Keybindings:
-  s = Scan        r = Report       t = Top 10       h = History
-  l = Log         e = Errors only  n = Consent      g = Scroll
-  i = Info        q = Quit         + / - = Log size
+Keybindings (TUI):
+  c = Crawl       m = Load sitemap   r = Report     h = History    s = Settings
+  w = Whitelist   e = Errors only    t = Theme      l = Log
+  d = Copy detail F10 = Top 10       / = Filter     i = Info       q = Quit
 """
 
 
