@@ -434,6 +434,13 @@ class Scanner:
 
             if response:
                 result.http_status_code = response.status
+                try:
+                    headers = await response.all_headers()
+                    result.response_headers = dict(headers)
+                    result.content_type = headers.get("content-type", "")
+                    result.last_modified = headers.get("last-modified", "")
+                except Exception:
+                    pass
 
             # Consent-Banner behandeln (akzeptieren oder nur verstecken)
             if self.accept_consent:

@@ -4,6 +4,10 @@ Screen {
     layout: vertical;
 }
 
+#summary {
+    height: auto;
+}
+
 #main-container {
     height: 1fr;
     layout: horizontal;
@@ -11,31 +15,60 @@ Screen {
 
 #left-panel {
     width: 60%;
+    min-width: 40;
     height: 1fr;
     layout: vertical;
 }
 
-#results-table {
+#main-splitter {
+    width: 1;
     height: 1fr;
 }
 
-#scan-log {
-    height: 15;
-    min-height: 5;
-    max-height: 30;
-    border-top: solid $accent;
-    display: block;
+#results-table {
+    height: 4fr;
+    min-height: 10;
 }
 
-#scan-log.hidden {
+#log-splitter {
+    height: 1;
+}
+
+#log-splitter.hidden {
     display: none;
 }
 
-#error-detail {
-    width: 40%;
+#scan-log {
     height: 1fr;
+    min-height: 5;
+    max-height: 40;
 }
 
-#summary {
-    height: auto;
+#right-panel {
+    width: 1fr;
+    height: 1fr;
+    layout: vertical;
+    border-left: solid $accent;
+}
+
+/* Preview oben, Splitter (ohne Border), darunter StatsPanel. */
+#preview-panel {
+    width: 1fr;
+    height: 1fr;
+    min-height: 10;
+}
+
+#preview-splitter {
+    width: 1fr;
+    height: 1;
+}
+
+#preview-splitter.hidden {
+    display: none;
+}
+
+#stats-panel {
+    width: 1fr;
+    height: 1fr;
+    min-height: 8;
 }
