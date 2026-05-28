@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "console-error-scanner"
-version = "1.7.1"
+version = "1.8.0"
 description = "TUI tool to scan websites for console errors and HTTP errors"
 requires-python = ">=3.12"
 dependencies = [
@@ -12,8 +12,12 @@ dependencies = [
     "rich>=13.0",
     "playwright>=1.40",
     "httpx>=0.25",
+    "Pillow>=10.0",
+    "textual-image[textual]>=0.12.0",
     "textual-themes @ git+https://github.com/michaelblaess/textual-themes.git",
     "textual-widgets @ git+https://github.com/michaelblaess/textual-widgets.git",
+    "textual-fspicker>=0.4.0",
+    "pywin32>=308; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
