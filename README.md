@@ -115,20 +115,22 @@ console-error-scanner https://www.example.com --no-headless
 
 ## CLI parameters
 
+CLI flags override the persisted settings for the current run. Everything except the URL itself has a sensible default in `~/.console-error-scanner/settings.json` and can also be changed at runtime via the settings dialog (`s`).
+
 | Parameter | Short | Default | Description |
 |-----------|------|---------|-------------|
-| `URL` | | (required) | URL of the website or sitemap (XML). For domain URLs the sitemap is found automatically |
-| `--concurrency` | `-c` | 8 | Max parallel browser tabs |
-| `--timeout` | `-t` | 60 | Timeout per page in seconds |
-| `--output-json` | | | Save JSON report automatically |
-| `--output-html` | | | Save HTML report automatically |
-| `--lang` | | de | Interface language (de, en) |
-| `--no-headless` | | false | Start browser visibly |
+| `URL_OR_FILE` | | (optional) | Website URL, sitemap URL or local sitemap.xml. For domain URLs the sitemap is found automatically. If omitted, the TUI asks for the URL on `c` |
+| `--concurrency` | `-c` | settings (8) | Max parallel browser tabs |
+| `--timeout` | `-t` | settings (60) | Timeout per page in seconds |
+| `--output-json` | | | Save JSON report automatically and exit |
+| `--output-html` | | | Save HTML report automatically and exit |
+| `--lang` | | settings (de) | Interface language (de, en) |
+| `--no-headless` | | false | Start browser visibly (debugging) |
 | `--filter` | `-f` | | Scan only URLs containing TEXT |
-| `--console-level` | | warn | error, warn, all |
+| `--console-level` | | settings (warn) | error, warn, all |
 | `--user-agent` | | Chrome 131 | Custom user-agent string |
 | `--cookie` | | | Set cookie (NAME=VALUE), can be used multiple times |
-| `--whitelist` | `-w` | | Path to the whitelist JSON (ignore known errors) |
+| `--whitelist` | `-w` | settings | Path to the whitelist JSON (ignore known errors) |
 | `--no-consent` | | false | Do NOT accept cookie consent (banner is only hidden) |
 | `--no-scroll` | | false | Do not scroll the page (no lazy-loading trigger) |
 
@@ -138,39 +140,57 @@ console-error-scanner https://www.example.com --no-headless
 - **warn** - `console.error()` + `console.warn()` (default)
 - **all** - All console output (`error`, `warn`, `info`, `log`, `debug`)
 
+> Info/Log/Debug are **not** captured as long as the level is `warn`.
+
 ## Features
 
 - **Sitemap auto-discovery**: For domain URLs the sitemap is found automatically via robots.txt and typical paths (/sitemap.xml, /sitemap/sitemap.xml, ...). If no sitemap exists, one can be created with the [Sitemap Generator](https://michaelblaess.github.io/sitemap-generator) and passed as a URL
-- **Lazy-loading trigger**: Automatically scrolls through pages to trigger images loaded via IntersectionObserver. Detects missing images (404) below the viewport. Toggleable via the `g` key or `--no-scroll`
-- **Consent banner handling**: 3-phase consent (JavaScript API, button-click fallback, CSS hide) for Usercentrics, OneTrust, CookieBot and generic banners. Toggleable via the `n` key or `--no-consent` between accepting and only hiding
+- **Sitemap file picker**: `m` opens a file-open dialog ([textual-fspicker](https://github.com/davep/textual-fspicker)) for local sitemap.xml files - alternative to typing the URL
+- **Page preview**: Optional Playwright sidecar renders a screenshot of the selected URL in the detail pane (TGP/Sixel terminals) with persistent disk cache (HTTP validator + TTL). Right-click on the preview copies the image to the clipboard (drag-and-drop into JIRA / Slack)
+- **Right-click context menu** on result rows: open URL in browser, copy URL, show/copy details, rescan a single URL, toggle errors-only filter
+- **Sortable columns**: Click any column header to sort ascending/descending with ▲/▼ indicator
+- **Lazy-loading trigger**: Automatically scrolls through pages to trigger images loaded via IntersectionObserver. Detects missing images (404) below the viewport
+- **Consent banner handling**: 3-phase consent (JavaScript API, button-click fallback, CSS hide) for Usercentrics, OneTrust, CookieBot and generic banners. Settings toggle between accepting and only hiding
 - **CSP violation detection**: Detects Content Security Policy violations via `pageerror` events
 - **Failed requests**: Detects aborted/failed network requests
-- **Cookie authentication**: Access to protected test environments via the `--cookie` parameter
-- **Whitelist**: Ignore known errors via wildcard patterns (e.g. attachShadow, AppInsights)
+- **Cookie authentication**: Access to protected test environments
+- **Whitelist**: Ignore known errors via wildcard patterns (e.g. attachShadow, AppInsights). Press `w` to inspect the loaded patterns and their hit counts
+- **Hover-clickable links** throughout: every URL and file path in logs, detail pane, dialogs and notifications opens in the OS default browser/file manager - no CTRL needed
+- **Settings dialog** (`s`): centralized config for concurrency, timeout, console-level, headless, consent, lazy-loading, whitelist path, user-agent, cookies, page preview - with info-icon tooltips and a storage-paths tab
 - **Live updates**: Results appear immediately in the table during the scan
 - **Auto-scroll**: The table scrolls along automatically to the currently scanned URL
+- **36 retro themes**: Pick via Ctrl+P or cycle with `t` (persistent)
 - **Multilingual**: German and English (`--lang en`), all UI texts via JSON language files
-- **Settings persistence**: Theme, consent mode, scroll mode and language are saved
-- **Scan history**: Previous scans can be restored via the `h` key
+- **Crash guard**: Unhandled exceptions show a copyable error screen instead of killing the app
+- **Scan history**: Previous scan URLs can be restored via `h`
 
 ## Keyboard shortcuts in the TUI
 
+The bindings are unified across all of Michael's TUIs (`c` = crawl, `s` = settings, `t` = theme, ...).
+
 | Key | Action |
 |-------|--------|
-| `s` | Start scan |
+| `c` | Start scan (asks for URL if none is loaded) |
+| `m` | Load a local sitemap file via file picker |
+| `s` | Settings dialog |
+| `h` | Scan history |
 | `r` | Save HTML + JSON reports |
-| `t` | Show top 10 errors |
-| `h` | Show scan history |
-| `n` | Consent toggle (ON = accept, OFF = only hide banner) |
-| `g` | Scroll toggle (ON = trigger lazy-loading, OFF = do not scroll) |
-| `l` | Show/hide log area |
-| `e` | Show only failed URLs |
-| `c` | Copy log to clipboard |
+| `w` | Show the loaded whitelist patterns + hit counts |
+| `e` | Show only pages with errors (toggle) |
+| `t` | Cycle to the next retro theme (Ctrl+P for full picker) |
+| `l` | Show/hide log panel (drag the splitter to resize) |
+| `d` | Copy the detail pane to the clipboard |
+| `F10` | Top 10 errors chart |
 | `/` | Focus the filter input |
-| `ESC` | Clear filter |
-| `+` / `-` | Enlarge/shrink the log area |
-| `i` | Info dialog |
+| `ESC` | Clear filter / close dialog |
+| `i` | About dialog |
 | `q` | Quit |
+
+**On the preview image** (when page preview is enabled in settings):
+- Right-click = copy screenshot to clipboard
+- Shift + right-click = save screenshot as PNG file
+
+**On a result row** (right-click): context menu with `Open URL in browser`, `Copy URL`, `Show details`, `Copy details`, `Rescan this URL`, `Show errors only / Show all`.
 
 ## Whitelist
 
@@ -205,6 +225,8 @@ A whitelist file can be used to ignore known, irrelevant errors. The file is in 
 
 An example whitelist is included in the repository under `whitelist.json`.
 
+The whitelist path is configured in the settings dialog (`s` → Whitelist path) and persisted; alternatively pass `--whitelist <path>` on the CLI. Press `w` in the TUI to open the **whitelist viewer** - a modal that lists every loaded pattern with its hit count against the current scan.
+
 ## Browser strategy
 
 On startup the scanner tries to use the **system Chrome** (`channel="chrome"`).
@@ -231,49 +253,44 @@ If Chrome is not installed, the **bundled Chromium** is used as a fallback.
 
 ```bash
 # Windows
-setup-dev-environment.bat
-run.bat https://www.example.com
+./bootstrap.ps1
+./run.ps1 https://www.example.com
 
 # Linux/macOS
-./setup-dev-environment.sh
+./bootstrap.sh
 ./run.sh https://www.example.com
 ```
 
-The setup creates a virtual environment (`.venv`), installs all dependencies and downloads the Chromium browser.
-
-Requirements: Python 3.10+
+The bootstrap script uses `uv` to create a virtual environment (`.venv`), syncs the runtime + dev dependencies from `uv.lock`, installs Nuitka for builds and downloads the Chromium browser. Requirements: Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
 #### Manual installation
 
 ```bash
 # 1. Create virtual environment
-python -m venv .venv
-.venv\Scripts\activate    # Windows
-source .venv/bin/activate  # Linux/macOS
+uv sync --extra dev
 
-# 2. Install the package
-pip install -e .
-
-# 3. Install the Playwright Chromium browser
-playwright install chromium
+# 2. Install the Playwright Chromium browser
+uv run playwright install chromium
 ```
 
-For SSL problems on a corporate network:
-```bash
-pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -e .
-```
+For SSL problems on a corporate network (Zscaler etc.), see the `bootstrap.ps1` script: set `UV_NATIVE_TLS=1`, clear `SSL_CERT_FILE`, and uv falls back to the Windows certificate store.
 
-### Local build (standalone EXE)
+### Local build (standalone binary)
+
+The build is based on **Nuitka** (compiles Python to a native binary, no interpreter on the target machine):
 
 ```bash
 # Windows
-build-dist.bat
+./compile-win64.ps1
 
-# Linux/macOS
-./build-dist.sh
+# Linux  (needs gcc + patchelf + python3-dev)
+./compile-linux.sh
+
+# macOS  (needs Xcode Command Line Tools)
+./compile-macos.sh
 ```
 
-Creates `dist/console-error-scanner/` - zip the folder and distribute it. No Python needed on the target machine.
+Creates `dist/console-error-scanner/` (~180 MB with Chromium headless shell) and a versioned `.zip` / `.tar.gz` next to it.
 
 ### Creating a release
 
@@ -294,29 +311,43 @@ Creates `dist/console-error-scanner/` - zip the folder and distribute it. No Pyt
 
 ```
 src/console_error_scanner/
-  __main__.py           CLI entry point (argparse)
-  app.py                Textual app (main class)
+  __main__.py           CLI entry point (argparse, pre-init textual-image)
+  app.py                Textual app (CrashGuard, LogRouter, ClickableLinks)
   app.tcss              Textual CSS (layout)
-  models/
-    scan_result.py      ScanResult, PageError, enums
-    sitemap.py          Sitemap parser + auto-discovery
-    history.py          Scan history persistence
-    settings.py         Settings persistence (theme, consent, scroll)
-    whitelist.py        Whitelist (wildcard pattern matching)
   i18n.py               Internationalization (t() function)
   locale/
     de.json             German language file
     en.json             English language file
+  models/
+    scan_result.py      ScanResult, PageError, enums (response_headers, content_type, last_modified)
+    sitemap.py          Sitemap parser + auto-discovery
+    history.py          Scan history persistence
+    settings.py         Settings persistence (theme, language, concurrency, timeout,
+                        console_level, consent, lazy_load, whitelist, headless, preview, ...)
+    whitelist.py        Whitelist (wildcard pattern matching)
   widgets/
-    results_table.py    DataTable with filter + auto-scroll
-    error_detail_view.py  Detail view on the right
-    summary_panel.py    Summary at the top
+    results_table.py    ResultsDataTable (right-click context menu, sortable columns) +
+                        SearchInputWithHistory filter + auto-scroll
+    stats_panel.py      Detail pane: Page / HTTP-Headers (collapsible) / Errors /
+                        Warnings / Whitelist / Info Rich-Panels
+    preview_panel.py    Screenshot preview via textual-image (TGP/Sixel) or Halfblock
+    summary_panel.py    InfoHeader at the top (4 columns: target / config / errors / progress)
   screens/
-    error_detail.py     Modal: error details
-    top_errors.py       Modal: top 10 errors chart
-    history.py          Modal: scan history
-    about.py            Modal: about dialog
+    error_detail.py     Modal: error details (markup + hover-links + close button)
+    top_errors.py       Modal: top 10 errors chart (auto-height + close button)
+    history.py          Modal: scan history (select + close buttons)
+    whitelist.py        Modal: whitelist viewer (patterns + hit counts)
+    settings.py         BaseSettingsScreen: Scanner tab + Language tab + Storage paths tab
   services/
-    scanner.py          Playwright scanner (retry, recovery)
+    scanner.py          Playwright scanner (retry, recovery, response headers capture)
     reporter.py         HTML + JSON report generator
+    preview_service.py  Playwright sidecar + disk cache for preview screenshots
+    image_clipboard.py  Cross-platform image-to-clipboard (Win: pywin32, macOS: osascript,
+                        Linux: xclip/wl-copy)
 ```
+
+Built on [textual-themes](https://github.com/michaelblaess/textual-themes) (36 retro palettes),
+[textual-widgets](https://github.com/michaelblaess/textual-widgets) (CrashGuard, LogPanel,
+BaseSettingsScreen, AboutScreen, UrlInputScreen, ContextMenuScreen, Splitters, InfoHeader,
+ClickableLinksMixin) and [textual-fspicker](https://github.com/davep/textual-fspicker)
+(FileOpen dialog).
