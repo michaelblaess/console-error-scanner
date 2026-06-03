@@ -147,7 +147,10 @@ CLI-Flags überschreiben die persistierten Einstellungen für den aktuellen Lauf
 - **Sitemap Auto-Discovery**: Bei Domain-URLs wird die Sitemap automatisch über robots.txt und typische Pfade (/sitemap.xml, /sitemap/sitemap.xml, ...) gefunden. Falls keine Sitemap vorhanden ist, kann mit dem [Sitemap Generator](https://michaelblaess.github.io/sitemap-generator) eine erstellt und als URL übergeben werden
 - **Sitemap-Datei-Picker**: `m` öffnet einen Datei-Dialog ([textual-fspicker](https://github.com/davep/textual-fspicker)) für lokale sitemap.xml-Dateien — Alternative zur URL-Eingabe
 - **Seiten-Vorschau**: Optionaler Playwright-Sidecar rendert in der Detail-Ansicht einen Screenshot der markierten URL (TGP/Sixel-Terminals) mit persistentem Disk-Cache (HTTP-Validator + TTL). Rechtsklick auf das Bild kopiert es in die Zwischenablage (Drag-and-Drop in JIRA / Slack)
-- **Rechtsklick-Kontextmenü** auf Ergebniszeilen: URL im Browser öffnen, URL kopieren, Details anzeigen/kopieren, URL erneut scannen, Nur-Fehler-Filter
+- **Site-Score**: Nach jedem Scan wird ein 0-100-Score (Note A-F) aus dem Anteil fehlerfreier Seiten und dem durchschnittlichen Seitengewicht berechnet - die Gewichtung ist einstellbar. Er erscheint farbcodiert im Header-Titel und in einem automatisch öffnenden Zusammenfassungs-Modal mit den Findings und den größten Seiten/Ressourcen ("Big Fische") als Balken-Charts
+- **Diät-Ratgeber**: Rechtsklick auf eine Zeile -> "Diät-Ratgeber" öffnet pro Seite ein Balken-Chart der größten Ressourcen (der "dicken Brocken"), damit sofort sichtbar ist, was die Seite fett macht
+- **Rechtsklick-Kontextmenü** auf Ergebniszeilen: URL im Browser öffnen, URL kopieren, Details anzeigen, Diät-Ratgeber, Details kopieren, URL erneut scannen, Nur-Fehler-Filter
+- **Seitengewicht-Spalte**: Die Spalte "Größe" zeigt das echte Transfergewicht (Summe der Same-Host-Ressourcen über die tatsächliche Antwortgröße, gestreamte Videos/Audios ausgeschlossen, jede Ressource einmal gezählt). Ein einstellbarer Schwellwert hebt zu große Seiten rot mit Warn-Symbol hervor; der Spaltenkopf-Tooltip erklärt die genaue Definition
 - **Sortierbare Spalten**: Klick auf einen Spaltenkopf sortiert auf-/absteigend mit ▲/▼-Indikator
 - **Lazy-Loading Trigger**: Scrollt Seiten automatisch durch, um per IntersectionObserver nachgeladene Bilder zu triggern. Erkennt fehlende Bilder (404) unterhalb des Viewports
 - **Consent-Banner Behandlung**: 3-Phasen-Consent (JavaScript-API, Button-Klick Fallback, CSS-Hide) für Usercentrics, OneTrust, CookieBot und generische Banner. Settings-Toggle zwischen Akzeptieren und nur Verstecken
@@ -156,7 +159,7 @@ CLI-Flags überschreiben die persistierten Einstellungen für den aktuellen Lauf
 - **Cookie-Authentifizierung**: Zugriff auf geschützte Testumgebungen
 - **Whitelist**: Bekannte Fehler per Wildcard-Pattern ignorieren (z.B. attachShadow, AppInsights). Mit `w` öffnet sich der Whitelist-Viewer mit Pattern-Liste und Trefferzahlen
 - **Hover-klickbare Links** überall: jede URL und jeder Pfad in Logs, Detail-Ansicht, Dialogen und Toasts öffnet im OS-Standard-Browser/Dateimanager — kein STRG nötig
-- **Einstellungs-Dialog** (`s`): zentrale Konfiguration für Concurrency, Timeout, Console-Level, Headless, Consent, Lazy-Loading, Whitelist-Pfad, User-Agent, Cookies, Seiten-Vorschau — mit Info-Icon-Tooltips und Speicherort-Tab
+- **Einstellungs-Dialog** (`s`): zentrale Konfiguration für Concurrency, Timeout, Console-Level, Headless, Consent, Lazy-Loading, Whitelist-Pfad, User-Agent, Cookies, Seiten-Vorschau, den Größen-Warnschwellwert (MB) und die Site-Score-Gewichtung — mit Info-Icon-Tooltips und Speicherort-Tab
 - **Live-Updates**: Ergebnisse erscheinen sofort während des Scans in der Tabelle
 - **Auto-Scroll**: Tabelle scrollt automatisch zur aktuell gescannten URL mit
 - **36 Retro-Themes**: Ctrl+P öffnet den Theme-Picker, `t` schaltet zum nächsten weiter (persistent)
@@ -190,7 +193,9 @@ Die Bindings sind über alle TUIs von Michael einheitlich (`c` = Crawl, `s` = Se
 - Rechtsklick = Screenshot in die Zwischenablage kopieren
 - Umschalt + Rechtsklick = Screenshot als PNG-Datei speichern
 
-**Auf einer Ergebniszeile** (Rechtsklick): Kontextmenü mit `URL im Browser öffnen`, `URL kopieren`, `Details anzeigen`, `Details kopieren`, `URL erneut scannen`, `Nur Fehler anzeigen / Alle anzeigen`.
+**Auf einer Ergebniszeile**:
+- Einfacher Links-Klick markiert die Zeile; **Doppelklick (oder Enter) öffnet das Detailfenster**
+- Rechtsklick = Kontextmenü mit `URL im Browser öffnen`, `URL kopieren`, `Details anzeigen`, `Diät-Ratgeber`, `Details kopieren`, `URL erneut scannen`, `Nur Fehler anzeigen / Alle anzeigen`
 
 ## Whitelist
 
