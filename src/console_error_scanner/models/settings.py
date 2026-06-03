@@ -78,6 +78,12 @@ class Settings:
             Roh-Cookies-String "name=value; name2=value2".
         whitelist_path:
             Pfad zur whitelist.json (leer = keine Whitelist).
+        size_warn_mb:
+            Schwellwert in MB: ueberschreitet die Seitengroesse diesen Wert,
+            wird die URL in der Liste rot hervorgehoben. 0 = aus.
+        score_error_weight:
+            Gewicht der Fehlerquote im Site-Score (in Prozent, 0-100). Das
+            Gewicht der Seitengroesse ist der Rest (100 - score_error_weight).
     """
 
     theme: str = "textual-dark"
@@ -92,6 +98,8 @@ class Settings:
     whitelist_path: str = ""
     no_headless: bool = False
     show_preview: bool = False
+    size_warn_mb: int = 10
+    score_error_weight: int = 60
 
     SETTINGS_DIR = SETTINGS_DIR
     SETTINGS_FILE = SETTINGS_FILE
@@ -111,6 +119,8 @@ class Settings:
             "whitelist_path": self.whitelist_path,
             "no_headless": self.no_headless,
             "show_preview": self.show_preview,
+            "size_warn_mb": self.size_warn_mb,
+            "score_error_weight": self.score_error_weight,
         }
 
     @staticmethod
@@ -142,6 +152,8 @@ class Settings:
                 whitelist_path=str(data.get("whitelist_path", "")),
                 no_headless=bool(data.get("no_headless", False)),
                 show_preview=bool(data.get("show_preview", False)),
+                size_warn_mb=int(data.get("size_warn_mb", 10)),
+                score_error_weight=int(data.get("score_error_weight", 60)),
             )
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)

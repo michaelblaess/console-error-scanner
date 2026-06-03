@@ -8,6 +8,9 @@ werden per ``set_value`` aktualisiert.
 
 from __future__ import annotations
 
+import contextlib
+
+from textual.widgets import Static
 from textual_widgets import InfoHeader, InfoItem
 
 from ..i18n import t
@@ -59,15 +62,38 @@ class SummaryHeader(InfoHeader):  # type: ignore[misc]
             columns=4,
             fill="column",
             title=t("header.title"),
+            label_width=18,
             collapsible=True,
             id=id,
         )
         self._scroll_on = trigger_lazy_load
         self._whitelist_active = whitelist_active
+        # Basis-Titel merken; der Score wird per set_score dahinter gehaengt.
+        self._base_title: str = t("header.title")
 
     @staticmethod
     def _on_off_text(flag: bool) -> str:
         return t("header.value_on") if flag else t("header.value_off")
+
+    def set_score(self, score: int, grade: str) -> None:
+        """Haengt den Site-Score (farbcodiert) hinter den Titel.
+
+        Args:
+            score:
+                Gesamtscore 0-100.
+            grade:
+                Buchstaben-Note (A-F).
+        """
+        style = "bold green" if score >= 75 else ("bold yellow" if score >= 45 else "bold red")
+        self._title = f"{self._base_title}   [{style}]Score: {score}% ({grade})[/]"
+        with contextlib.suppress(Exception):
+            self.query_one("#info-title", Static).update(self._title_text())
+
+    def _reset_title(self) -> None:
+        """Entfernt den Score wieder aus dem Titel (z.B. bei neuem Scan)."""
+        self._title = self._base_title
+        with contextlib.suppress(Exception):
+            self.query_one("#info-title", Static).update(self._title_text())
 
     def set_sitemap(self, sitemap_markup: str, url_count: int) -> None:
         """Setzt Sitemap-Anzeige und URL-Zahl.
@@ -80,6 +106,7 @@ class SummaryHeader(InfoHeader):  # type: ignore[misc]
         self.set_value("urls", str(url_count))
         self.set_value("scanned", "0")
         self.set_value("duration", t("header.value_none"))
+        self._reset_title()
         for key in (
             "with_errors",
             "console_err",

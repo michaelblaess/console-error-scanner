@@ -9,6 +9,7 @@ from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.coordinate import Coordinate
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import DataTable, Input, Static
@@ -37,6 +38,28 @@ class ResultsDataTable(DataTable):
             self.screen_y = screen_y
             self.row_index = row_index
 
+    class RowActivated(Message):
+        """Zeile aktiviert (Doppelklick oder Enter) - oeffnet das Detailfenster."""
+
+        def __init__(self, row_index: int) -> None:
+            super().__init__()
+            self.row_index = row_index
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+        # Spaltenindex -> Tooltip-Text fuer den jeweiligen Spaltenkopf.
+        self.header_tooltips: dict[int, str] = {}
+
+    def set_header_tooltips(self, tooltips: dict[int, str]) -> None:
+        """Legt die Tooltips pro Spaltenindex fest."""
+        self.header_tooltips = dict(tooltips)
+
+    def watch_hover_coordinate(self, old: Coordinate, value: Coordinate) -> None:
+        """Zeigt einen Tooltip, wenn ein Spaltenkopf (Zeile -1) gehovert wird."""
+        super().watch_hover_coordinate(old, value)
+        # Zeile -1 ist der Spaltenkopf; Datenzeilen haben row >= 0.
+        self.tooltip = self.header_tooltips.get(value.column) if value.row == -1 else None
+
     async def _on_click(self, event: events.Click) -> None:
         if event.button == 3:
             meta = event.style.meta if event.style else {}
@@ -45,7 +68,24 @@ class ResultsDataTable(DataTable):
                 event.stop()
                 self.post_message(self.RightClicked(event.screen_x, event.screen_y, row_idx))
                 return
+        # Doppelklick (chain >= 2) auf eine Datenzeile oeffnet das Detailfenster.
+        # Einfacher Klick bewegt nur den Cursor (markiert die Zeile).
+        if event.button == 1 and event.chain >= 2:
+            meta = event.style.meta if event.style else {}
+            row_idx = meta.get("row", -1)
+            col_idx = meta.get("column", 0)
+            if isinstance(row_idx, int) and row_idx >= 0:
+                event.stop()
+                self.cursor_coordinate = Coordinate(row_idx, col_idx if isinstance(col_idx, int) else 0)
+                self.post_message(self.RowActivated(row_idx))
+                return
         await super()._on_click(event)
+
+    def action_select_cursor(self) -> None:
+        """Enter auf einer Zeile oeffnet das Detailfenster (Tastatur-Pfad)."""
+        super().action_select_cursor()
+        if self.cursor_type == "row" and self.cursor_row >= 0:
+            self.post_message(self.RowActivated(self.cursor_row))
 
 
 from ..i18n import t
@@ -138,6 +178,9 @@ class ResultsTable(Vertical):
         self._auto_scroll_row: int = -1
         self._sort_col: int | None = None
         self._sort_desc: bool = False
+        # Schwellwert fuer "zu grosse Seite" in Bytes (0 = aus). Wird von der
+        # App aus den Settings gesetzt (set_size_warn_mb).
+        self._size_warn_bytes: int = 0
 
     def compose(self) -> ComposeResult:
         """Erstellt die Kind-Widgets."""
@@ -168,8 +211,31 @@ class ResultsTable(Vertical):
             t("table.col_ignored"),
         ]
         self._col_keys = table.add_columns(*self._base_column_labels)
+        # Tooltip fuer den Groesse-Spaltenkopf (Index 5).
+        if isinstance(table, ResultsDataTable):
+            table.set_header_tooltips({5: t("table.tooltip_size")})
         self._spinner_timer = self.set_interval(0.3, self._tick_spinner)
         self._update_sort_indicator()
+
+    def set_size_warn_mb(self, mb: int) -> None:
+        """Setzt den Schwellwert fuer die Gross-Seiten-Hervorhebung.
+
+        Args:
+            mb:
+                Schwellwert in MB. 0 (oder negativ) deaktiviert die
+                Hervorhebung. Wird in Bytes umgerechnet gespeichert.
+        """
+        new_bytes = max(0, mb) * 1024 * 1024
+        if new_bytes == self._size_warn_bytes:
+            return
+        self._size_warn_bytes = new_bytes
+        # Bestehende Anzeige neu einfaerben.
+        with contextlib.suppress(Exception):
+            self._refresh_table()
+
+    def _is_oversized(self, result: ScanResult, scanned: bool) -> bool:
+        """True, wenn die Seite den gesetzten Groessen-Schwellwert ueberschreitet."""
+        return scanned and self._size_warn_bytes > 0 and result.page_size_bytes > self._size_warn_bytes
 
     def _tick_spinner(self) -> None:
         """Aktualisiert den Spinner-Frame fuer SCANNING-Zeilen in-place."""
@@ -252,10 +318,23 @@ class ResultsTable(Vertical):
         time_str = f"{result.load_time_ms / 1000:.1f}s" if result.load_time_ms > 0 else "-"
         size_str = format_page_size(result.page_size_bytes) if scanned else "-"
 
+        # Zu grosse Seite: Status bekommt ein Warn-Symbol, URL + Groesse werden
+        # bold-rot hervorgehoben.
+        oversized = self._is_oversized(result, scanned)
+        if oversized:
+            # Warn-Symbol VOR den Status stellen. U+26A0 + U+FE0E
+            # (Text-Variationsselektor) -> monochrom, nimmt die rote Style-Farbe
+            # an statt als gelbes Emoji zu rendern.
+            status_text = Text("⚠︎ ", style="bold red") + status_text
+        url_cell: str | Text = Text(result.url, style="bold red") if oversized else result.url
+        # Groesse rechtsbuendig, damit die Werte (KB/MB) untereinander fluchten.
+        size_cell = Text(size_str, justify="right", style="bold red" if oversized else "")
+
         table.update_cell(row_key, self._col_keys[1], status_text)
+        table.update_cell(row_key, self._col_keys[2], url_cell)
         table.update_cell(row_key, self._col_keys[3], http_code_str)
         table.update_cell(row_key, self._col_keys[4], time_str)
-        table.update_cell(row_key, self._col_keys[5], size_str)
+        table.update_cell(row_key, self._col_keys[5], size_cell)
         table.update_cell(row_key, self._col_keys[6], errors_text)
         table.update_cell(row_key, self._col_keys[7], warns_text)
         table.update_cell(row_key, self._col_keys[8], http_404_text)
@@ -321,13 +400,20 @@ class ResultsTable(Vertical):
             time_str = f"{result.load_time_ms / 1000:.1f}s" if result.load_time_ms > 0 else "-"
             size_str = format_page_size(result.page_size_bytes) if scanned else "-"
 
+            oversized = self._is_oversized(result, scanned)
+            if oversized:
+                status_text = Text("⚠︎ ", style="bold red") + status_text
+            url_cell: str | Text = Text(result.url, style="bold red") if oversized else result.url
+            # Groesse rechtsbuendig, damit die Werte (KB/MB) untereinander fluchten.
+            size_cell = Text(size_str, justify="right", style="bold red" if oversized else "")
+
             table.add_row(
                 str(idx + 1),
                 status_text,
-                result.url,
+                url_cell,
                 http_code_str,
                 time_str,
-                size_str,
+                size_cell,
                 errors_text,
                 warns_text,
                 http_404_text,
@@ -433,9 +519,13 @@ class ResultsTable(Vertical):
             self.filter_text = event.value
             self._apply_filter()
 
-    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Reagiert auf Enter/Klick auf eine Zeile (nur Links-Klick)."""
-        idx = int(event.row_key.value)
+    def on_results_data_table_row_activated(self, event: ResultsDataTable.RowActivated) -> None:
+        """Doppelklick oder Enter auf einer Zeile -> Detailfenster oeffnen.
+
+        Einfacher Links-Klick markiert die Zeile nur (siehe ResultsDataTable),
+        oeffnet das Detailfenster aber nicht mehr.
+        """
+        idx = event.row_index
         if 0 <= idx < len(self._filtered):
             self.post_message(self.ResultSelected(self._filtered[idx]))
 

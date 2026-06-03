@@ -12,7 +12,7 @@ import httpx
 from playwright.async_api import Browser, Page, async_playwright
 
 from ..i18n import t
-from ..models.scan_result import ErrorType, PageError, PageStatus, ScanResult
+from ..models.scan_result import ErrorType, PageError, PageStatus, ResourceSize, ScanResult
 
 
 class Scanner:
@@ -353,20 +353,31 @@ class Scanner:
             page.on("pageerror", on_pageerror)
 
             # HTTP-Fehler Handler registrieren
-            page_size = 0
+            # Seitengewicht: die fuers Seitengewicht relevanten Same-Host-
+            # Responses werden gesammelt und am Ende (nach dem Lazy-Load) ueber
+            # die ECHTE Transfergroesse (request.sizes().responseBodySize)
+            # bewertet - nicht ueber den content-length-Header, der bei vielen
+            # Bildern (Sitefinity-Imageserver, chunked) fehlt und sie sonst aus
+            # der Summe fallen laesst. Gefiltert wird auf:
+            # - Status 200 (Range-/Teilantworten 206 raus),
+            # - keine gestreamten Media (Video/Audio) - die werden im Headless-
+            #   Browser waehrend networkidle komplett/mehrfach durchgepuffert und
+            #   verfaelschen die Groesse massiv (z.B. 3x147 MB Video).
+            # Pro URL zaehlt spaeter nur die groesste Antwort (kein Mehrfachzaehlen).
+            size_responses: list = []
             page_domain = urlparse(result.url).hostname or ""
 
             def on_response(response):
-                nonlocal page_size
                 status = response.status
                 url = response.url
 
-                # Transfer-Groesse aufsummieren (nur Same-Domain-Ressourcen)
                 resp_domain = urlparse(url).hostname or ""
-                if resp_domain == page_domain:
-                    content_length = response.headers.get("content-length", "")
-                    if content_length.isdigit():
-                        page_size += int(content_length)
+                if (
+                    resp_domain == page_domain
+                    and status == 200
+                    and response.request.resource_type != "media"
+                ):
+                    size_responses.append(response)
 
                 # Haupt-Seiten-Status merken
                 if response.request.resource_type == "document":
@@ -430,7 +441,6 @@ class Scanner:
             )
             elapsed = time.monotonic() - start_time
             result.load_time_ms = int(elapsed * 1000)
-            result.page_size_bytes = page_size
 
             if response:
                 result.http_status_code = response.status
@@ -454,6 +464,29 @@ class Scanner:
             # Lazy-Loading triggern: Seite durchscrollen damit Bilder geladen werden
             if self.trigger_lazy_load:
                 await self._trigger_lazy_loading(page, log)
+
+            # Seitengroesse ERST JETZT festhalten - nach dem Lazy-Load-Scroll,
+            # damit die nachgeladenen Bilder mitzaehlen (der response-Handler
+            # sammelt bis hierher weiter). Pro URL die groesste echte
+            # Transfergroesse (responseBodySize), Media bleibt ausgeschlossen.
+            url_sizes: dict[str, int] = {}
+            url_types: dict[str, str] = {}
+            for resp in size_responses:
+                try:
+                    body = (await resp.request.sizes()).get("responseBodySize", 0) or 0
+                except Exception:
+                    # Fallback auf den content-length-Header, falls sizes() fehlschlaegt.
+                    cl = resp.headers.get("content-length", "")
+                    body = int(cl) if cl.isdigit() else 0
+                if body > url_sizes.get(resp.url, 0):
+                    url_sizes[resp.url] = body
+                    url_types[resp.url] = resp.request.resource_type
+            result.page_size_bytes = sum(url_sizes.values())
+            # Groesste Einzelressourcen fuer den Diaet-Ratgeber (Top 20).
+            top = sorted(url_sizes.items(), key=lambda kv: kv[1], reverse=True)[:20]
+            result.resource_sizes = [
+                ResourceSize(url=u, size_bytes=b, resource_type=url_types.get(u, "")) for u, b in top
+            ]
 
             # Doubletten entfernen: gleiche (error_type, message, source) nur einmal
             seen = set()

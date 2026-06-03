@@ -18,6 +18,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.timer import Timer
+from textual.widget import Widget
 from textual.widgets import Button, Footer, Header
 from textual_themes import THEME_DISPLAY_NAMES, register_all
 from textual_widgets import (
@@ -136,6 +137,8 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             trigger_lazy_load if trigger_lazy_load is not None else self._settings.trigger_lazy_load
         )
         self.show_preview: bool = self._settings.show_preview
+        # Schwellwert (MB) fuer die Gross-Seiten-Hervorhebung in der Tabelle.
+        self.size_warn_mb: int = self._settings.size_warn_mb
 
         # Theme aus Settings uebernehmen
         self.theme = self._settings.theme
@@ -152,6 +155,10 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         self._scan_current: int = 0
         self._scan_total: int = 0
         self._scan_progress_timer: Timer | None = None
+        # Startklar nach Sitemap-Laden / History-Auswahl -> Footer-Taste "c"
+        # blinkt, bis der Scan startet.
+        self._scan_ready: bool = False
+        self._attention_on: bool = False
         self._preview_service = None  # PreviewService lazy beim ersten Bild
 
         self._apply_binding_i18n()
@@ -239,8 +246,41 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             table = self.query_one("#results-data", DataTable)
             table.focus()
 
+        # Gross-Seiten-Schwellwert an die Tabelle geben (vor dem ersten Laden).
+        with contextlib.suppress(Exception):
+            self.query_one("#results-table", ResultsTable).set_size_warn_mb(self.size_warn_mb)
+
+        # Blinkender Footer-Hinweis lenkt den Blick auf die naechste sinnvolle
+        # Aktion: ist nach Sitemap-Laden / History-Auswahl startklar, blinkt "c".
+        # Manuelles Toggle per Timer statt ANSI-blink (Windows-Terminal-robust).
+        self.set_interval(0.6, self._tick_attention)
+
         if self.sitemap_url:
             self._load_sitemap()
+
+    def _tick_attention(self) -> None:
+        """Schaltet die Highlight-Klasse auf der Scan-Taste an/aus (Blink)."""
+        target = "start_scan" if self._scan_ready and not self._scan_running else ""
+        self._attention_on = not self._attention_on if target else False
+        key = self._footer_key("start_scan")
+        if key is not None:
+            key.set_class(target == "start_scan" and self._attention_on, "-attention")
+
+    def _footer_key(self, action: str) -> Widget | None:
+        """Findet die Footer-Taste zu einer Aktion (oder None).
+
+        Args:
+            action:
+                Name der Action (z.B. "start_scan").
+
+        Returns:
+            Das FooterKey-Widget oder None, falls der Footer gerade fehlt.
+        """
+        with contextlib.suppress(Exception):
+            for footer_key in self.query("FooterKey"):
+                if getattr(footer_key, "action", "") == action:
+                    return footer_key
+        return None
 
     def _load_whitelist_silent(self) -> None:
         """Laedt die Whitelist (oder leert sie) ohne Exceptions hochzuwerfen."""
@@ -342,6 +382,10 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
 
         self.sub_title = t("subtitle.urls_count", count=len(self._urls))
 
+        # Sitemap geladen -> startklar: Footer-Taste "c" blinkt, bis der Scan
+        # startet. Deckt auch die History-Auswahl ab (laeuft ueber _load_sitemap).
+        self._scan_ready = True
+
         # Auto-Scan starten wenn CLI-Reports angefordert
         if self.output_json or self.output_html:
             self.action_start_scan()
@@ -415,6 +459,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             return
 
         self._scan_running = True
+        self._scan_ready = False
         self._scan_start_time = time.monotonic()
         self._scan_current = 0
         self._scan_total = len(self._results)
@@ -534,6 +579,21 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
 
         self.sub_title = t("subtitle.scan_complete", count=len(self._urls))
 
+        # Site-Score berechnen, im Header anzeigen und ins Log schreiben.
+        from .services.site_score import compute_site_score
+
+        score = compute_site_score(self._results, error_weight=self._settings.score_error_weight)
+        with contextlib.suppress(Exception):
+            summary.set_score(score.score, score.grade)
+        self._write_log(t("log.site_score", score=score.score, grade=score.grade))
+
+        # Zusammenfassung (Score + Findings + Big Fische) automatisch oeffnen -
+        # ausser im reinen CLI-Export-Modus (da laeuft die App nicht interaktiv).
+        if not (self.output_json or self.output_html):
+            from .screens.scan_summary import ScanSummaryScreen
+
+            self.push_screen(ScanSummaryScreen(score))
+
         # Jetzt erst Preview fuer die aktuell markierte Zeile nachladen -
         # vorher (waehrend des Scans) war das Auto-Scroll-Cursor-Springen
         # nicht sinnvoll als Preview-Trigger.
@@ -606,6 +666,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             ContextMenuItem("copy_url", t("ctx.copy_url")),
             ContextMenuItem.separator(),
             ContextMenuItem("details", t("ctx.show_details")),
+            ContextMenuItem("diet", t("ctx.diet")),
             ContextMenuItem("copy_details", t("ctx.copy_details")),
             ContextMenuItem.separator(),
             ContextMenuItem("rescan", t("ctx.rescan"), enabled=not self._scan_running),
@@ -637,6 +698,10 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             from .screens.error_detail import ErrorDetailScreen
 
             self.push_screen(ErrorDetailScreen(result))
+        elif choice == "diet":
+            from .screens.diet_advisor import DietAdvisorScreen
+
+            self.push_screen(DietAdvisorScreen(result))
         elif choice == "copy_details":
             # Selected-Result kurz setzen, dann action_copy_details rufen
             stats = self.query_one("#stats-panel", StatsPanel)
@@ -732,7 +797,9 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         panel.show_loading(url)
         if self._preview_service is None:
             self._preview_service = PreviewService()
-        data = await self._preview_service.capture(url)
+        # on_phase aktualisiert die Live-Phase im Panel. Der Worker laeuft im
+        # Textual-Event-Loop, daher ist der direkte Widget-Zugriff sicher.
+        data = await self._preview_service.capture(url, on_phase=panel.set_phase)
         # Cursor kann zwischenzeitlich weitergewandert sein - nur anzeigen,
         # wenn dieser Worker noch zur aktuellen URL gehoert.
         if panel.current_url() == url or panel.current_url() == "":
@@ -1032,6 +1099,10 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         self._settings.user_agent = str(result.get("user_agent", self._settings.user_agent))
         self._settings.cookies = str(result.get("cookies", self._settings.cookies))
         self._settings.whitelist_path = str(result.get("whitelist_path", self._settings.whitelist_path))
+        self._settings.size_warn_mb = int(str(result.get("size_warn_mb", self._settings.size_warn_mb)))
+        self._settings.score_error_weight = int(
+            str(result.get("score_error_weight", self._settings.score_error_weight))
+        )
         self._settings.save()
 
         # Runtime-Werte fuer den naechsten Scan aktualisieren
@@ -1044,6 +1115,10 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         self.headless = not self._settings.no_headless
         self.user_agent = self._settings.user_agent
         self.cookies = parse_cookies(self._settings.cookies)
+        self.size_warn_mb = self._settings.size_warn_mb
+        # Tabelle sofort neu einfaerben (kein Neu-Scan noetig).
+        with contextlib.suppress(Exception):
+            self.query_one("#results-table", ResultsTable).set_size_warn_mb(self.size_warn_mb)
 
         # Preview-Panel zur Laufzeit ein-/ausblenden
         with contextlib.suppress(Exception):
