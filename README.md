@@ -147,7 +147,10 @@ CLI flags override the persisted settings for the current run. Everything except
 - **Sitemap auto-discovery**: For domain URLs the sitemap is found automatically via robots.txt and typical paths (/sitemap.xml, /sitemap/sitemap.xml, ...). If no sitemap exists, one can be created with the [Sitemap Generator](https://michaelblaess.github.io/sitemap-generator) and passed as a URL
 - **Sitemap file picker**: `m` opens a file-open dialog ([textual-fspicker](https://github.com/davep/textual-fspicker)) for local sitemap.xml files - alternative to typing the URL
 - **Page preview**: Optional Playwright sidecar renders a screenshot of the selected URL in the detail pane (TGP/Sixel terminals) with persistent disk cache (HTTP validator + TTL). Right-click on the preview copies the image to the clipboard (drag-and-drop into JIRA / Slack)
-- **Right-click context menu** on result rows: open URL in browser, copy URL, show/copy details, rescan a single URL, toggle errors-only filter
+- **Site score**: After each scan a 0-100 score (grade A-F) is computed from the share of error-free pages and the average page weight - the weighting is configurable. It is shown color-coded in the header title and in an auto-opening summary modal with the findings and the biggest pages/resources ("big fish") as bar charts
+- **Diet advisor**: Right-click a row -> "Diet advisor" opens a per-page bar chart of the largest resources (the "fat chunks") so you immediately see what bloats a page
+- **Right-click context menu** on result rows: open URL in browser, copy URL, show details, diet advisor, copy details, rescan a single URL, toggle errors-only filter
+- **Page-weight column**: The "Size" column shows the real transfer weight (sum of same-host resources via the actual response body size, streamed video/audio excluded, each resource counted once). A configurable threshold highlights oversized pages red with a warning marker; hover the column header for the exact definition
 - **Sortable columns**: Click any column header to sort ascending/descending with ▲/▼ indicator
 - **Lazy-loading trigger**: Automatically scrolls through pages to trigger images loaded via IntersectionObserver. Detects missing images (404) below the viewport
 - **Consent banner handling**: 3-phase consent (JavaScript API, button-click fallback, CSS hide) for Usercentrics, OneTrust, CookieBot and generic banners. Settings toggle between accepting and only hiding
@@ -156,7 +159,7 @@ CLI flags override the persisted settings for the current run. Everything except
 - **Cookie authentication**: Access to protected test environments
 - **Whitelist**: Ignore known errors via wildcard patterns (e.g. attachShadow, AppInsights). Press `w` to inspect the loaded patterns and their hit counts
 - **Hover-clickable links** throughout: every URL and file path in logs, detail pane, dialogs and notifications opens in the OS default browser/file manager - no CTRL needed
-- **Settings dialog** (`s`): centralized config for concurrency, timeout, console-level, headless, consent, lazy-loading, whitelist path, user-agent, cookies, page preview - with info-icon tooltips and a storage-paths tab
+- **Settings dialog** (`s`): centralized config for concurrency, timeout, console-level, headless, consent, lazy-loading, whitelist path, user-agent, cookies, page preview, the size-warning threshold (MB) and the site-score weighting - with info-icon tooltips and a storage-paths tab
 - **Live updates**: Results appear immediately in the table during the scan
 - **Auto-scroll**: The table scrolls along automatically to the currently scanned URL
 - **36 retro themes**: Pick via Ctrl+P or cycle with `t` (persistent)
@@ -190,7 +193,9 @@ The bindings are unified across all of Michael's TUIs (`c` = crawl, `s` = settin
 - Right-click = copy screenshot to clipboard
 - Shift + right-click = save screenshot as PNG file
 
-**On a result row** (right-click): context menu with `Open URL in browser`, `Copy URL`, `Show details`, `Copy details`, `Rescan this URL`, `Show errors only / Show all`.
+**On a result row**:
+- Single left-click selects the row; **double-click (or Enter) opens the detail window**
+- Right-click = context menu with `Open URL in browser`, `Copy URL`, `Show details`, `Diet advisor`, `Copy details`, `Rescan this URL`, `Show errors only / Show all`
 
 ## Whitelist
 
