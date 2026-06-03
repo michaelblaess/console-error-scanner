@@ -19,9 +19,15 @@ import contextlib
 import hashlib
 import json
 import time
+from collections.abc import Callable
 from pathlib import Path
 
-from playwright.async_api import Browser, Playwright, async_playwright
+from playwright.async_api import Browser, Page, Playwright, async_playwright
+
+# Typ fuer den optionalen Fortschritts-Callback. Bekommt einen semantischen
+# Phasen-Schluessel ("navigate", "consent", "render", "capture"), den die UI
+# uebersetzt und live anzeigt.
+PhaseCallback = Callable[[str], None]
 
 _VIEWPORT = {"width": 1280, "height": 800}
 
@@ -41,8 +47,24 @@ class PreviewService:
         self._cache_dir = cache_dir or CACHE_DIR
         self._ttl = ttl_seconds
 
-    async def capture(self, url: str, validator: str = "") -> bytes | None:
-        """Liefert einen PNG-Screenshot der Seite (aus Cache, wenn frisch)."""
+    async def capture(
+        self, url: str, validator: str = "", on_phase: PhaseCallback | None = None
+    ) -> bytes | None:
+        """Liefert einen PNG-Screenshot der Seite (aus Cache, wenn frisch).
+
+        Args:
+            url:
+                Die zu fotografierende URL.
+            validator:
+                Optionaler Cache-Validator aus der Scan-Antwort.
+            on_phase:
+                Optionaler Callback, der bei jedem Schritt der Live-Erzeugung
+                einen Phasen-Schluessel bekommt ("navigate", "consent",
+                "render", "capture"). Bei Cache-Treffern NICHT gerufen.
+
+        Returns:
+            PNG-Bilddaten oder None, wenn der Screenshot fehlschlaegt.
+        """
         cached = self._mem.get(url)
         if cached is not None and self._mem_fresh(cached[0], validator):
             return cached[1]
@@ -61,7 +83,10 @@ class PreviewService:
                 browser = await self._ensure_browser()
                 page = await browser.new_page(viewport=_VIEWPORT, ignore_https_errors=True)  # type: ignore[arg-type]
                 try:
+                    self._emit(on_phase, "navigate")
                     await page.goto(url, wait_until="load", timeout=15000)
+                    await self._prepare_page(page, on_phase)
+                    self._emit(on_phase, "capture")
                     data = await page.screenshot(type="png")
                 finally:
                     await page.close()
@@ -71,6 +96,114 @@ class PreviewService:
         self._mem[url] = (validator, data)
         self._save_disk(url, validator, data)
         return data
+
+    @staticmethod
+    def _emit(on_phase: PhaseCallback | None, phase: str) -> None:
+        """Ruft den Fortschritts-Callback best-effort auf."""
+        if on_phase is None:
+            return
+        with contextlib.suppress(Exception):
+            on_phase(phase)
+
+    async def _prepare_page(self, page: Page, on_phase: PhaseCallback | None = None) -> None:
+        """Bereitet die Seite fuer den Screenshot vor.
+
+        Akzeptiert gaengige Cookie-Consent-Banner (sonst bleiben Hero-/
+        Tracking-Bilder ggf. ungeladen), wartet auf networkidle (SPAs rendern
+        Inhalt erst nach dem load-Event) und triggert Lazy-Loading. Ohne diese
+        Schritte wird der Screenshot zu frueh gemacht und oben sichtbare Bilder
+        fehlen.
+
+        Args:
+            page:
+                Die bereits navigierte Playwright-Page.
+            on_phase:
+                Optionaler Fortschritts-Callback (siehe ``capture``).
+        """
+        self._emit(on_phase, "consent")
+        await self._accept_consent(page)
+        self._emit(on_phase, "render")
+        await self._trigger_lazy_loading(page)
+
+    @staticmethod
+    async def _accept_consent(page: Page) -> None:
+        """Akzeptiert gaengige Consent-Manager (Usercentrics/OneTrust/Cookiebot).
+
+        Viele Seiten laden Tracking- und teils Hero-/Asset-Scripts erst nach
+        dem Consent. Best-effort - schlaegt es fehl, faehrt der Screenshot fort.
+
+        Args:
+            page:
+                Die navigierte Playwright-Page.
+        """
+        with contextlib.suppress(Exception):
+            consent = await page.evaluate(
+                """() => {
+                    if (window.UC_UI && typeof window.UC_UI.acceptAllConsents === 'function') {
+                        window.UC_UI.acceptAllConsents();
+                        if (typeof window.UC_UI.closeCMP === 'function') { window.UC_UI.closeCMP(); }
+                        return true;
+                    }
+                    if (window.OneTrust && typeof window.OneTrust.AllowAll === 'function') {
+                        window.OneTrust.AllowAll();
+                        return true;
+                    }
+                    if (window.Cookiebot && typeof window.Cookiebot.submitCustomConsent === 'function') {
+                        window.Cookiebot.submitCustomConsent(true, true, true);
+                        return true;
+                    }
+                    return false;
+                }"""
+            )
+            if consent:
+                await page.wait_for_timeout(1500)
+
+    @staticmethod
+    async def _trigger_lazy_loading(page: Page) -> None:
+        """Scrollt die Seite durch und wartet, bis alle Bilder geladen sind.
+
+        Wartet zuerst auf networkidle (JS-gerenderter Content steht erst danach),
+        triggert dann IntersectionObserver-basiertes Lazy-Loading und pollt auf
+        ``img.complete``. Best-effort - Fehler sind unkritisch.
+
+        Args:
+            page:
+                Die navigierte Playwright-Page.
+        """
+        # Viele Seiten (SPAs) rendern ihren Inhalt erst nach dem load-Event per
+        # JS nach - inkl. Hero-Bildern (oft CSS-Backgrounds, nicht <img>).
+        # networkidle abwarten, damit der Content steht. Best-effort mit
+        # Timeout, weil Seiten mit Dauerverbindungen sonst haengen wuerden.
+        with contextlib.suppress(Exception):
+            await page.wait_for_load_state("networkidle", timeout=8000)
+
+        with contextlib.suppress(Exception):
+            viewport_height = await page.evaluate("window.innerHeight")
+            scroll_height = await page.evaluate("document.documentElement.scrollHeight")
+
+            if scroll_height > viewport_height:
+                current = 0
+                while current < scroll_height:
+                    current += viewport_height
+                    await page.evaluate(f"window.scrollTo(0, {current})")
+                    await page.wait_for_timeout(150)
+                await page.evaluate("window.scrollTo(0, 0)")
+                await page.wait_for_timeout(300)
+
+            # Warten bis alle Bilder geladen (max ~3s Polling).
+            for _ in range(12):
+                all_loaded = await page.evaluate(
+                    """() => {
+                        const imgs = Array.from(document.querySelectorAll('img'));
+                        return imgs.every(i => i.complete && i.naturalWidth > 0);
+                    }"""
+                )
+                if all_loaded:
+                    break
+                await page.wait_for_timeout(250)
+
+            # Extra-Settle fuer spaet getriggerte Bilder.
+            await page.wait_for_timeout(500)
 
     @staticmethod
     def _mem_fresh(stored_validator: str, validator: str) -> bool:

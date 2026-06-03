@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from urllib.parse import unquote
+
 from rich.markup import escape as escape_markup
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
@@ -59,6 +61,10 @@ class ErrorDetailScreen(ModalScreen[None]):
         padding: 1 2;
     }
 
+    ErrorDetailScreen #detail-scroll {
+        height: 1fr;
+    }
+
     ErrorDetailScreen #detail-content {
         height: auto;
         padding: 1;
@@ -87,8 +93,8 @@ class ErrorDetailScreen(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Static(t("error_detail_screen.title", url=self._result.url), id="detail-title")
-            content = Static(self._build_markup(), id="detail-content", markup=True)
-            yield content
+            with VerticalScroll(id="detail-scroll"):
+                yield Static(self._build_markup(), id="detail-content", markup=True)
             with Horizontal(id="detail-buttons"):
                 yield Button(t("binding.close"), variant="primary", id="detail-close")
 
@@ -125,13 +131,16 @@ class ErrorDetailScreen(ModalScreen[None]):
             style = _TYPE_STYLES.get(error.error_type, "")
             label = _TYPE_LABELS.get(error.error_type, "?")
             tag = f"[{style}]\\[{label}][/]" if style else f"\\[{label}]"
-            parts.append(f"{tag} {escape_markup(error.message)}")
+            # URLs in der Meldung sind oft percent-encoded - fuer die Anzeige
+            # dekodieren (%2F -> /, %3A -> :), spart Platz und ist lesbarer.
+            parts.append(f"{tag} {escape_markup(unquote(error.message))}")
             if error.source:
                 source = error.source
                 if error.line_number:
                     source += f":{error.line_number}"
                 parts.append(
-                    f"[dim]{escape_markup(t('error_detail_screen.source', source=''))}[/]{self._link(source, error.source)}"
+                    f"[dim]{escape_markup(t('error_detail_screen.source', source=''))}[/]"
+                    f"{self._link(unquote(source), error.source)}"
                 )
             parts.append("")
 
@@ -142,7 +151,7 @@ class ErrorDetailScreen(ModalScreen[None]):
             parts.append("")
             for error in ignored_errors:
                 label = _TYPE_LABELS.get(error.error_type, "?")
-                parts.append(f"[dim]\\[{label}] {escape_markup(error.message)}[/]")
+                parts.append(f"[dim]\\[{label}] {escape_markup(unquote(error.message))}[/]")
                 parts.append("")
 
         return "\n".join(parts)

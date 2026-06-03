@@ -24,9 +24,11 @@ class ScannerSettingsScreen(BaseSettingsScreen):
 
     DEFAULT_CSS = """
     /* Label-Spalte: Label + (?)-Icon nebeneinander, gemeinsame feste Breite,
-       damit alle Eingabefelder bündig untereinander stehen. */
+       damit alle Eingabefelder bündig untereinander stehen. Breite muss das
+       laengste Label ("Groessen-Warnung (MB)" / "Size warning (MB)") plus das
+       (?)-Icon fassen, sonst wird das Icon abgeschnitten. */
     ScannerSettingsScreen .label-with-icon {
-        width: 22;
+        width: 26;
         height: 1;
     }
     ScannerSettingsScreen .label-with-icon Label {
@@ -76,6 +78,20 @@ class ScannerSettingsScreen(BaseSettingsScreen):
                     value=str(self._settings.get("timeout", 60)),
                     type="integer",
                     id="set-timeout",
+                )
+            with Horizontal(classes="settings-row"):
+                yield from self._label_with_icon(t("settings.size_warn_label"), t("settings.size_warn_tip"))
+                yield Input(
+                    value=str(self._settings.get("size_warn_mb", 10)),
+                    type="integer",
+                    id="set-size-warn",
+                )
+            with Horizontal(classes="settings-row"):
+                yield from self._label_with_icon(t("settings.score_weight_label"), t("settings.score_weight_tip"))
+                yield Input(
+                    value=str(self._settings.get("score_error_weight", 60)),
+                    type="integer",
+                    id="set-score-weight",
                 )
             with Horizontal(classes="settings-row"):
                 yield from self._label_with_icon(t("settings.console_level_label"), t("settings.console_level_tip"))
@@ -136,6 +152,8 @@ class ScannerSettingsScreen(BaseSettingsScreen):
         settings["trigger_lazy_load"] = self.query_one("#set-scroll", Checkbox).value
         settings["concurrency"] = self._int("#set-concurrency", 8)
         settings["timeout"] = self._int("#set-timeout", 60, minimum=5)
+        settings["size_warn_mb"] = self._int("#set-size-warn", 10, minimum=0)
+        settings["score_error_weight"] = min(100, self._int("#set-score-weight", 60, minimum=0))
         level_select = self.query_one("#set-console-level", Select)
         level_value = level_select.value
         settings["console_level"] = str(level_value) if level_value is not Select.BLANK else "warn"

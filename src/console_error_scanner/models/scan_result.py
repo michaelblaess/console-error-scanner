@@ -49,6 +49,26 @@ class PageError:
 
 
 @dataclass
+class ResourceSize:
+    """Eine einzelne geladene Ressource mit ihrer Transfergroesse.
+
+    Dient dem "Diaet-Ratgeber" (groesste Brocken einer Seite).
+    """
+
+    url: str
+    size_bytes: int
+    resource_type: str = ""
+
+    def to_dict(self) -> dict:
+        """Konvertiert die Ressource in ein Dictionary."""
+        return {
+            "url": self.url,
+            "size_bytes": self.size_bytes,
+            "resource_type": self.resource_type,
+        }
+
+
+@dataclass
 class ScanResult:
     """Ergebnis des Scans einer einzelnen Seite."""
 
@@ -63,6 +83,8 @@ class ScanResult:
     response_headers: dict[str, str] = field(default_factory=dict)
     content_type: str = ""
     last_modified: str = ""
+    # Groesste Einzelressourcen (same-host), absteigend - fuer den Diaet-Ratgeber.
+    resource_sizes: list[ResourceSize] = field(default_factory=list)
 
     @property
     def console_error_count(self) -> int:
