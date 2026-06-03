@@ -18,3 +18,7 @@ console-error-report_*.html
 .textual/
 .build-venv/
 history/
+
+# Lokale Tool-/Session-Verzeichnisse und Test-Artefakte
+.claude/
+sitemap_*.xml

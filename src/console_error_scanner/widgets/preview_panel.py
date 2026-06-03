@@ -156,8 +156,12 @@ class PreviewPanel(Widget):
             self._graphics_widget_cls = _load_graphics_widget_class(backend)
         self._loading_timer: Any = None
         self._loading_step: int = 0
+        self._loading_phase: str = "navigate"
         self._current_png: bytes | None = None
         self._current_url: str = ""
+        # Merkt, ob aktuell ein TGP/Sixel-Bild gezeichnet ist. Nur dann muss
+        # beim Leeren ein voller Repaint die out-of-band Pixel ueberschreiben.
+        self._has_graphics_image: bool = False
 
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="preview-scroll"):
@@ -172,22 +176,33 @@ class PreviewPanel(Widget):
         self._set_status(t("preview.select"))
         self.tooltip = t("preview.tooltip")
 
-    def _set_status(self, text: str) -> None:
+    def _set_status(self, text: str | Text) -> None:
         with contextlib.suppress(Exception):
             self.query_one("#preview-status", Static).update(text)
 
     def _clear_graphics_image(self) -> None:
         if self._graphics_widget_cls is None:
             return
+        had_image = self._has_graphics_image
         with contextlib.suppress(Exception):
             widget = self.query_one("#preview-content", self._graphics_widget_cls)
             widget.image = None  # type: ignore[attr-defined]
+        self._has_graphics_image = False
+        # TGP/Sixel-Pixel liegen out-of-band im Terminal-Pixelpuffer. image=None
+        # malt die Zellen NICHT neu (render_lines gibt [] zurueck), und Pixel,
+        # die ueber die Widget-Region hinausragen, bleiben sonst als Artefakt
+        # stehen. Ein voller Screen-Repaint (gesamte Screen-Region dirty ->
+        # render_full_update) ueberschreibt alle Zellen und wischt sie weg.
+        if had_image:
+            with contextlib.suppress(Exception):
+                self.app.refresh(repaint=True)
 
     def show_loading(self, url: str = "") -> None:
-        """Zeigt den Ladezustand an — mit wachsender Punkt-Animation."""
+        """Zeigt den Ladezustand an — mit Live-Phase und Punkt-Animation."""
         self._current_url = url
         self._loading_step = 0
-        self._set_status(t("preview.loading"))
+        self._loading_phase = "navigate"
+        self._render_loading()
         if self._graphics_widget_cls is not None:
             self._clear_graphics_image()
         else:
@@ -198,10 +213,31 @@ class PreviewPanel(Widget):
                 self._loading_timer.stop()
         self._loading_timer = self.set_interval(0.4, self._tick_loading)
 
+    def set_phase(self, phase: str) -> None:
+        """Setzt die aktuell laufende Erzeugungs-Phase (live waehrend capture).
+
+        Args:
+            phase:
+                Semantischer Phasen-Schluessel aus dem PreviewService
+                ("navigate", "consent", "render", "capture").
+        """
+        self._loading_phase = phase
+        self._loading_step = 0
+        self._render_loading()
+
     def _tick_loading(self) -> None:
         self._loading_step = (self._loading_step + 1) % 4
+        self._render_loading()
+
+    def _render_loading(self) -> None:
+        """Rendert die Phasen-Zeile (mit Punkten) plus erklaerenden Hinweis."""
         dots = "." * self._loading_step
-        self._set_status(t("preview.loading") + dots)
+        text = Text()
+        text.append(t(f"preview.phase.{self._loading_phase}"))
+        text.append(dots)
+        text.append("\n")
+        text.append(t("preview.loading_hint"), style="dim italic")
+        self._set_status(text)
 
     def _stop_loading_animation(self) -> None:
         if self._loading_timer is not None:
@@ -240,6 +276,7 @@ class PreviewPanel(Widget):
             assert self._graphics_widget_cls is not None
             widget = self.query_one("#preview-content", self._graphics_widget_cls)
             widget.image = pil_img  # type: ignore[attr-defined]
+            self._has_graphics_image = True
             self._set_status("")
         except Exception:
             logger.debug("Grafik-Vorschau fehlgeschlagen", exc_info=True)

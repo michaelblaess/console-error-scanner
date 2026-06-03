@@ -72,3 +72,13 @@ Screen {
     height: 1fr;
     min-height: 8;
 }
+
+/* Aufmerksamkeits-Blink fuer die Scan-Taste, wenn nach Sitemap-Laden oder
+   History-Auswahl startklar. Die Klasse wird per Timer an/aus geschaltet
+   (_tick_attention) - terminal-robust statt unzuverlaessigem ANSI-blink. */
+Footer FooterKey.-attention .footer-key--key,
+Footer FooterKey.-attention .footer-key--description {
+    background: $accent;
+    color: auto;
+    text-style: bold;
+}
