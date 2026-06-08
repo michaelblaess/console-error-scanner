@@ -15,7 +15,7 @@ _EMPTY = "░"
 
 
 def render_bars(
-    rows: Sequence[tuple[int, str, str]],
+    rows: Sequence[tuple[int, str, str | Text]],
     max_bar: int = 22,
     bar_style: str = "cyan",
 ) -> Text:
@@ -25,7 +25,9 @@ def render_bars(
         rows:
             Liste aus ``(wert, wert_label, text)`` - z.B.
             ``(2517000, "2,4 MB", "jpeg  bild.jpg")``. Die Balkenlaenge ist
-            relativ zum groessten Wert.
+            relativ zum groessten Wert. Ist ``text`` ein ``Text`` (statt eines
+            ``str``), wird es unveraendert uebernommen - so bleiben z.B.
+            Klick-Aktionen (``@click``-Meta) fuer Hover-Links erhalten.
         max_bar:
             Maximale Balkenbreite in Zellen.
         bar_style:
@@ -51,5 +53,8 @@ def render_bars(
         out.append("  ")
         out.append(value_label.rjust(value_width), style="bold")
         out.append("  ")
-        out.append(text, style="dim")
+        if isinstance(text, Text):
+            out.append_text(text)
+        else:
+            out.append(text, style="dim")
     return out

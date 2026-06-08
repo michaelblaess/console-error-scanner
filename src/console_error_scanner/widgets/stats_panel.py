@@ -154,6 +154,11 @@ class StatsPanel(VerticalScroll):
             (t("detail.status"), self._detail_value(f"{result.status_icon} {result.status.value}")),
             (t("detail.http"), self._detail_value(str(result.http_status_code) if result.http_status_code else "-")),
             (t("detail.load_time"), self._detail_value(_format_load_time(result.load_time_ms))),
+            (
+                t("detail.dom_content_loaded"),
+                self._detail_value(_format_load_time(result.dom_content_loaded_ms)),
+            ),
+            (t("detail.requests"), self._detail_value(str(result.request_count) if result.request_count else "-")),
             (t("detail.size"), self._detail_value(format_page_size(result.page_size_bytes))),
         ]
         if result.retry_count > 0:
