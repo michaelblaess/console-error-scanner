@@ -20,6 +20,7 @@ class Reporter:
         results: list[ScanResult],
         summary: ScanSummary,
         output_path: str,
+        error_weight: int = 60,
     ) -> str:
         """Speichert die Ergebnisse als JSON-Report.
 
@@ -27,13 +28,18 @@ class Reporter:
             results: Liste der Scan-Ergebnisse.
             summary: Gesamtzusammenfassung.
             output_path: Pfad fuer die JSON-Datei.
+            error_weight:
+                Gewicht der Fehlerquote (Prozent) fuer den Site-Score. Rest =
+                Gewicht der Seitengroesse. Default 60 wie in den Settings.
 
         Returns:
             Absoluter Pfad der gespeicherten Datei.
         """
+        score = compute_site_score(results, error_weight=error_weight)
         report = {
             "generated_at": datetime.now().isoformat(),
             "summary": summary.to_dict(),
+            "site_score": score.to_dict(),
             "results": [r.to_dict() for r in results],
         }
 
