@@ -53,6 +53,35 @@ class SiteScore:
             return "E"
         return "F"
 
+    def to_dict(self) -> dict:
+        """Konvertiert den Site-Score in ein Dictionary (fuer den JSON-Report).
+
+        Die groessten Seiten werden kompakt als url/Groesse abgebildet (die
+        vollen ScanResults stehen ohnehin im results-Array), die groessten
+        Einzelressourcen ueber ResourceSize.to_dict().
+
+        Returns:
+            Ein serialisierbares Dictionary mit Score, Detailwerten und den
+            groessten Seiten/Ressourcen.
+        """
+        return {
+            "score": self.score,
+            "grade": self.grade,
+            "error_score": self.error_score,
+            "size_score": self.size_score,
+            "error_weight": self.error_weight,
+            "total_pages": self.total_pages,
+            "clean_pages": self.clean_pages,
+            "pages_with_errors": self.pages_with_errors,
+            "total_errors": self.total_errors,
+            "total_warnings": self.total_warnings,
+            "avg_page_size_bytes": self.avg_page_size_bytes,
+            "biggest_pages": [
+                {"url": p.url, "page_size_bytes": p.page_size_bytes} for p in self.biggest_pages
+            ],
+            "biggest_resources": [r.to_dict() for r in self.biggest_resources],
+        }
+
 
 def _size_score(avg_bytes: int) -> int:
     """Rechnet die Ø-Seitengroesse in einen 0-100-Score um (kleiner = besser)."""
