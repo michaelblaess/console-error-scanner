@@ -914,7 +914,9 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         base_name = f"console-error-report_{site_name}_{timestamp}"
 
         json_path = f"{base_name}.json"
-        saved_json = Reporter.save_json(self._results, summary, json_path)
+        saved_json = Reporter.save_json(
+            self._results, summary, json_path, error_weight=self._settings.score_error_weight
+        )
         self._write_log(f"[green]{t('log.json_report', path=self.link_markup(saved_json, saved_json))}[/green]")
 
         html_path = f"{base_name}.html"
@@ -928,7 +930,9 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
     def _save_reports_auto(self, summary: ScanSummary) -> None:
         """Speichert Reports automatisch (CLI-Parameter)."""
         if self.output_json:
-            path = Reporter.save_json(self._results, summary, self.output_json)
+            path = Reporter.save_json(
+                self._results, summary, self.output_json, error_weight=self._settings.score_error_weight
+            )
             self._write_log(f"[green]{t('log.json_report', path=self.link_markup(path, path))}[/green]")
         if self.output_html:
             path = Reporter.save_html(
