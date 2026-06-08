@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 
+from rich.markup import escape as escape_markup
 from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
@@ -71,6 +73,24 @@ class TopErrorsScreen(ModalScreen):
     def __init__(self, results: list[ScanResult], **kwargs) -> None:
         super().__init__(**kwargs)
         self._results = results
+
+    def _link(self, display: str, target: str) -> Text:
+        """Baut einen Hover-klickbaren Link-Text (volle URL als Klickziel).
+
+        Args:
+            display:
+                Der angezeigte (ggf. gekuerzte) Text.
+            target:
+                Die vollstaendige URL, die beim Klick geoeffnet wird.
+
+        Returns:
+            Ein ``Text`` mit ``@click``-Meta - oder unverlinkt, falls die App
+            keinen ``link_markup``-Helfer bereitstellt.
+        """
+        link_fn = getattr(self.app, "link_markup", None)
+        if callable(link_fn):
+            return Text.from_markup(link_fn(escape_markup(display), target))
+        return Text(display)
 
     def compose(self) -> ComposeResult:
         """Erstellt das Modal-Layout."""
@@ -142,17 +162,17 @@ class TopErrorsScreen(ModalScreen):
         if warning_counter:
             _append_section(text, "Console Warnings", warning_counter, "yellow")
 
-        # === HTTP 404 Top 10 ===
+        # === HTTP 404 Top 10 === (Eintraege sind URLs -> Hover-Links)
         if http_404_counter:
-            _append_section(text, "HTTP 404", http_404_counter, "yellow")
+            _append_section(text, "HTTP 404", http_404_counter, "yellow", link_fn=self._link)
 
         # === HTTP 4xx Top 10 ===
         if http_4xx_counter:
-            _append_section(text, "HTTP 4xx", http_4xx_counter, "yellow")
+            _append_section(text, "HTTP 4xx", http_4xx_counter, "yellow", link_fn=self._link)
 
         # === HTTP 5xx Top 10 ===
         if http_5xx_counter:
-            _append_section(text, "HTTP 5xx", http_5xx_counter, "red")
+            _append_section(text, "HTTP 5xx", http_5xx_counter, "red", link_fn=self._link)
 
         # === Seiten mit den meisten Fehlern ===
         text.append("\u2500" * 60, style="dim")
@@ -165,8 +185,8 @@ class TopErrorsScreen(ModalScreen):
         if page_errors:
             max_page_count = page_errors[0][1]
             for rank, (url, count) in enumerate(page_errors[:10], 1):
-                display = _truncate(url, MAX_MSG_LEN)
-                _append_bar_entry(text, rank, display, count, max_page_count, "cyan")
+                label = self._link(_truncate(url, MAX_MSG_LEN), url)
+                _append_bar_entry(text, rank, label, count, max_page_count, "cyan")
 
         return text
 
@@ -175,7 +195,13 @@ class TopErrorsScreen(ModalScreen):
         self.dismiss()
 
 
-def _append_section(text: Text, title: str, counter: Counter, color: str) -> None:
+def _append_section(
+    text: Text,
+    title: str,
+    counter: Counter,
+    color: str,
+    link_fn: Callable[[str, str], Text] | None = None,
+) -> None:
     """Fuegt eine Chart-Sektion mit Balkendiagramm hinzu.
 
     Args:
@@ -183,6 +209,10 @@ def _append_section(text: Text, title: str, counter: Counter, color: str) -> Non
         title: Titel der Sektion.
         counter: Counter mit Fehlermeldung -> Anzahl.
         color: Farbe der Balken.
+        link_fn:
+            Optionaler Helfer (display, target) -> klickbarer Text. Gesetzt,
+            wenn die Counter-Keys URLs sind (HTTP-Sektionen) - dann wird das
+            Label ein Hover-Link mit der vollen URL als Klickziel.
     """
     text.append(f"{title}\n", style=f"bold {color} underline")
     text.append("\n")
@@ -190,7 +220,8 @@ def _append_section(text: Text, title: str, counter: Counter, color: str) -> Non
     max_count = counter.most_common(1)[0][1] if counter else 1
     for rank, (msg, count) in enumerate(counter.most_common(10), 1):
         display = _truncate(msg, MAX_MSG_LEN)
-        _append_bar_entry(text, rank, display, count, max_count, color)
+        label: str | Text = link_fn(display, msg) if link_fn else display
+        _append_bar_entry(text, rank, label, count, max_count, color)
 
     text.append("\n")
 
@@ -238,7 +269,7 @@ def _truncate(text: str, max_len: int) -> str:
 def _append_bar_entry(
     text: Text,
     rank: int,
-    label: str,
+    label: str | Text,
     count: int,
     max_count: int,
     color: str,
@@ -257,9 +288,13 @@ def _append_bar_entry(
         max_count: Maximaler Wert (fuer Balkenbreite).
         color: Farbe des Balkens.
     """
-    # Zeile 1: Rang + Label
+    # Zeile 1: Rang + Label (Label kann ein klickbarer Text sein)
     text.append(f"  {rank:2d}. ", style="bold")
-    text.append(f"{label}\n", style="")
+    if isinstance(label, Text):
+        text.append_text(label)
+        text.append("\n")
+    else:
+        text.append(f"{label}\n", style="")
 
     # Zeile 2: Eingerueckter Balken + Anzahl
     bar_len = max(1, int(BAR_WIDTH * count / max_count)) if max_count > 0 else 1

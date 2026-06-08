@@ -67,6 +67,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         Binding("t,T", "cycle_theme", "placeholder", key_display="t"),
         Binding("l,L", "toggle_log", "placeholder", key_display="l"),
         Binding("d,D", "copy_details", "placeholder", key_display="d"),
+        Binding("z,Z", "show_summary", "placeholder", key_display="z"),
         Binding("f10", "show_top_errors", "placeholder", key_display="F10"),
         Binding("slash", "focus_filter", "Filter", key_display="/", show=False),
         Binding("escape", "unfocus_filter", "placeholder", show=False),
@@ -87,6 +88,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         "toggle_log": "log",
         "copy_details": "copy_details",
         "show_top_errors": "top_errors",
+        "show_summary": "summary",
         "show_about": "info",
     }
 
@@ -587,12 +589,10 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             summary.set_score(score.score, score.grade)
         self._write_log(t("log.site_score", score=score.score, grade=score.grade))
 
-        # Zusammenfassung (Score + Findings + Big Fische) automatisch oeffnen -
-        # ausser im reinen CLI-Export-Modus (da laeuft die App nicht interaktiv).
+        # Zusammenfassung (Score + Findings + Speicherfresser) automatisch oeffnen
+        # - ausser im reinen CLI-Export-Modus (da laeuft die App nicht interaktiv).
         if not (self.output_json or self.output_html):
-            from .screens.scan_summary import ScanSummaryScreen
-
-            self.push_screen(ScanSummaryScreen(score))
+            self._open_summary()
 
         # Jetzt erst Preview fuer die aktuell markierte Zeile nachladen -
         # vorher (waehrend des Scans) war das Auto-Scroll-Cursor-Springen
@@ -602,6 +602,28 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
 
         if self.output_json or self.output_html:
             self._save_reports_auto(summary_data)
+
+        # Footer-Binding "z Zusammenfassung" jetzt aktivieren (Scan ist durch).
+        self.refresh_bindings()
+
+    def _open_summary(self) -> None:
+        """Berechnet den Site-Score aus den aktuellen Ergebnissen neu und oeffnet
+        die Zusammenfassung. Gemeinsamer Pfad fuer Auto-Open (Scan-Ende) und das
+        ``z``-Binding."""
+        if not self._results:
+            return
+        from .screens.scan_summary import ScanSummaryScreen
+        from .services.site_score import compute_site_score
+
+        score = compute_site_score(self._results, error_weight=self._settings.score_error_weight)
+        self.push_screen(ScanSummaryScreen(score))
+
+    def action_show_summary(self) -> None:
+        """Oeffnet die Scan-Zusammenfassung (Site-Score) erneut - nur wenn ein
+        Scan abgeschlossen ist (Ergebnisse vorhanden, kein laufender Scan)."""
+        if not self._results or self._scan_running:
+            return
+        self._open_summary()
 
     def _on_scan_result(self, result: ScanResult) -> None:
         """Verarbeitet ein einzelnes Scan-Ergebnis (Live-Update)."""
@@ -896,7 +918,9 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         self._write_log(f"[green]{t('log.json_report', path=self.link_markup(saved_json, saved_json))}[/green]")
 
         html_path = f"{base_name}.html"
-        saved_html = Reporter.save_html(self._results, summary, html_path)
+        saved_html = Reporter.save_html(
+            self._results, summary, html_path, error_weight=self._settings.score_error_weight
+        )
         self._write_log(f"[green]{t('log.html_report', path=self.link_markup(saved_html, saved_html))}[/green]")
 
         self.notify(t("notify.reports_saved", json_path=json_path, html_path=html_path))
@@ -907,7 +931,9 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             path = Reporter.save_json(self._results, summary, self.output_json)
             self._write_log(f"[green]{t('log.json_report', path=self.link_markup(path, path))}[/green]")
         if self.output_html:
-            path = Reporter.save_html(self._results, summary, self.output_html)
+            path = Reporter.save_html(
+                self._results, summary, self.output_html, error_weight=self._settings.score_error_weight
+            )
             self._write_log(f"[green]{t('log.html_report', path=self.link_markup(path, path))}[/green]")
 
     def action_copy_details(self) -> None:
@@ -1252,6 +1278,9 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             return None if self._scan_running or self._sitemap_loading else True
         if action in ("save_reports", "show_top_errors", "toggle_errors", "copy_details"):
             return True if self._results else None
+        if action == "show_summary":
+            # Nur wenn ein Scan abgeschlossen ist (Ergebnisse da, kein Lauf aktiv).
+            return True if (self._results and not self._scan_running) else None
         if action == "show_whitelist":
             return True if self._whitelist is not None else None
         return True

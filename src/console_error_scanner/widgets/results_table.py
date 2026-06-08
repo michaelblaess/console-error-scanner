@@ -157,12 +157,13 @@ class ResultsTable(Vertical):
         3: lambda r: r.http_status_code,
         4: lambda r: r.load_time_ms,
         5: lambda r: r.page_size_bytes,
-        6: lambda r: r.console_error_count,
-        7: lambda r: r.console_warning_count,
-        8: lambda r: r.http_404_count,
-        9: lambda r: r.http_4xx_count,
-        10: lambda r: r.http_5xx_count,
-        11: lambda r: r.ignored_count,
+        6: lambda r: r.request_count,
+        7: lambda r: r.console_error_count,
+        8: lambda r: r.console_warning_count,
+        9: lambda r: r.http_404_count,
+        10: lambda r: r.http_4xx_count,
+        11: lambda r: r.http_5xx_count,
+        12: lambda r: r.ignored_count,
     }
 
     def __init__(self, **kwargs) -> None:
@@ -203,6 +204,7 @@ class ResultsTable(Vertical):
             t("table.col_http"),
             t("table.col_time"),
             t("table.col_size"),
+            t("table.col_requests"),
             t("table.col_errors"),
             t("table.col_warns"),
             t("table.col_404"),
@@ -211,9 +213,16 @@ class ResultsTable(Vertical):
             t("table.col_ignored"),
         ]
         self._col_keys = table.add_columns(*self._base_column_labels)
-        # Tooltip fuer den Groesse-Spaltenkopf (Index 5).
+        # Tooltips: Zeit (Index 4) mit Parallel-Last-Hinweis, Groesse (5),
+        # Requests (6).
         if isinstance(table, ResultsDataTable):
-            table.set_header_tooltips({5: t("table.tooltip_size")})
+            table.set_header_tooltips(
+                {
+                    4: t("table.tooltip_time"),
+                    5: t("table.tooltip_size"),
+                    6: t("table.tooltip_requests"),
+                }
+            )
         self._spinner_timer = self.set_interval(0.3, self._tick_spinner)
         self._update_sort_indicator()
 
@@ -317,6 +326,7 @@ class ResultsTable(Vertical):
         http_code_str = str(result.http_status_code) if result.http_status_code > 0 else "-"
         time_str = f"{result.load_time_ms / 1000:.1f}s" if result.load_time_ms > 0 else "-"
         size_str = format_page_size(result.page_size_bytes) if scanned else "-"
+        req_cell = Text(str(result.request_count) if scanned else "-", justify="right")
 
         # Zu grosse Seite: Status bekommt ein Warn-Symbol, URL + Groesse werden
         # bold-rot hervorgehoben.
@@ -335,12 +345,13 @@ class ResultsTable(Vertical):
         table.update_cell(row_key, self._col_keys[3], http_code_str)
         table.update_cell(row_key, self._col_keys[4], time_str)
         table.update_cell(row_key, self._col_keys[5], size_cell)
-        table.update_cell(row_key, self._col_keys[6], errors_text)
-        table.update_cell(row_key, self._col_keys[7], warns_text)
-        table.update_cell(row_key, self._col_keys[8], http_404_text)
-        table.update_cell(row_key, self._col_keys[9], http_4xx_text)
-        table.update_cell(row_key, self._col_keys[10], http_5xx_text)
-        table.update_cell(row_key, self._col_keys[11], ignored_text)
+        table.update_cell(row_key, self._col_keys[6], req_cell)
+        table.update_cell(row_key, self._col_keys[7], errors_text)
+        table.update_cell(row_key, self._col_keys[8], warns_text)
+        table.update_cell(row_key, self._col_keys[9], http_404_text)
+        table.update_cell(row_key, self._col_keys[10], http_4xx_text)
+        table.update_cell(row_key, self._col_keys[11], http_5xx_text)
+        table.update_cell(row_key, self._col_keys[12], ignored_text)
 
     def _scroll_to_result(self, result: ScanResult) -> None:
         """Merkt sich die Ziel-Zeile fuer Auto-Scroll."""
@@ -399,6 +410,7 @@ class ResultsTable(Vertical):
             http_code_str = str(result.http_status_code) if result.http_status_code > 0 else "-"
             time_str = f"{result.load_time_ms / 1000:.1f}s" if result.load_time_ms > 0 else "-"
             size_str = format_page_size(result.page_size_bytes) if scanned else "-"
+            req_cell = Text(str(result.request_count) if scanned else "-", justify="right")
 
             oversized = self._is_oversized(result, scanned)
             if oversized:
@@ -414,6 +426,7 @@ class ResultsTable(Vertical):
                 http_code_str,
                 time_str,
                 size_cell,
+                req_cell,
                 errors_text,
                 warns_text,
                 http_404_text,

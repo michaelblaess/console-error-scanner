@@ -6,8 +6,10 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from .. import __version__
 from ..i18n import t
-from ..models.scan_result import ScanResult, ScanSummary
+from ..models.scan_result import ScanResult, ScanSummary, format_page_size
+from .site_score import compute_site_score
 
 
 class Reporter:
@@ -46,6 +48,7 @@ class Reporter:
         results: list[ScanResult],
         summary: ScanSummary,
         output_path: str,
+        error_weight: int = 60,
     ) -> str:
         """Speichert die Ergebnisse als HTML-Report (self-contained).
 
@@ -53,12 +56,22 @@ class Reporter:
             results: Liste der Scan-Ergebnisse.
             summary: Gesamtzusammenfassung.
             output_path: Pfad fuer die HTML-Datei.
+            error_weight:
+                Gewicht der Fehlerquote (Prozent) fuer den Site-Score. Rest =
+                Gewicht der Seitengroesse. Default 60 wie in den Settings.
 
         Returns:
             Absoluter Pfad der gespeicherten Datei.
         """
         timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         duration_s = summary.scan_duration_ms / 1000 if summary.scan_duration_ms > 0 else 0
+        # Site-Score (inkl. groesster Seiten/Ressourcen) wie im TUI-Summary.
+        score = compute_site_score(results, error_weight=error_weight)
+        pages_entries = [(p.url, format_page_size(p.page_size_bytes), p.page_size_bytes) for p in score.biggest_pages]
+        res_entries = [(rs.url, format_page_size(rs.size_bytes), rs.size_bytes) for rs in score.biggest_resources]
+        top_sections_html = _top_list_html(t("summary.biggest_pages"), pages_entries) + _top_list_html(
+            t("summary.big_fish"), res_entries
+        )
 
         # Ergebnis-Zeilen aufbauen
         result_rows = []
@@ -127,7 +140,10 @@ class Reporter:
                 f"<td class='status-cell'>{r.status_icon}</td>"
                 f"<td><a href='{_html_escape(r.url)}' target='_blank'>{_html_escape(r.url)}</a></td>"
                 f"<td>{r.http_status_code}</td>"
-                f"<td>{r.load_time_ms}ms</td>"
+                f"<td>{_fmt_ms(r.load_time_ms)}</td>"
+                f"<td>{_fmt_ms(r.dom_content_loaded_ms)}</td>"
+                f"<td>{r.request_count if r.request_count > 0 else '-'}</td>"
+                f"<td>{format_page_size(r.page_size_bytes)}</td>"
                 f"<td>{r.console_error_count}</td>"
                 f"<td>{r.http_404_count}</td>"
                 f"<td>{r.http_4xx_count}</td>"
@@ -138,7 +154,7 @@ class Reporter:
 
             if error_details or ignored_details:
                 result_rows.append(
-                    f"<tr class='detail-row'><td colspan='10'>{error_details}{ignored_details}</td></tr>"
+                    f"<tr class='detail-row'><td colspan='13'>{error_details}{ignored_details}</td></tr>"
                 )
 
         html = f"""<!DOCTYPE html>
@@ -191,6 +207,17 @@ class Reporter:
         .error-type.ignored {{ background: #8b949e26; color: #8b949e; }}
 
         .footer {{ margin-top: 20px; color: #484f58; font-size: 0.8rem; text-align: center; }}
+
+        .score-card {{ border-color: #58a6ff; }}
+        .summary-card .value .grade {{ font-size: 1rem; color: #8b949e; font-weight: normal; }}
+
+        .top-section {{ margin-top: 25px; }}
+        .top-section h2 {{ color: #58a6ff; font-size: 1.1rem; margin-bottom: 10px; }}
+        .top-row {{ display: flex; align-items: center; gap: 10px; padding: 3px 0; font-size: 0.85rem; }}
+        .top-val {{ flex: 0 0 80px; text-align: right; font-weight: bold; font-variant-numeric: tabular-nums; }}
+        .top-bar {{ flex: 0 0 180px; background: #21262d; border-radius: 3px; height: 14px; overflow: hidden; }}
+        .top-fill {{ height: 100%; background: #1f6feb; }}
+        .top-url {{ flex: 1 1 auto; word-break: break-all; }}
     </style>
 </head>
 <body>
@@ -198,6 +225,14 @@ class Reporter:
     <p class="timestamp">{t("report.created", timestamp=timestamp, url=_html_escape(summary.sitemap_url))}</p>
 
     <div class="summary">
+        <div class="summary-card score-card">
+            <div class="label">{t("report.site_score")}</div>
+            <div class="value {_score_class(score.score)}">{score.score} %<span class="grade"> ({score.grade})</span></div>
+        </div>
+        <div class="summary-card">
+            <div class="label">{t("report.avg_size")}</div>
+            <div class="value">{format_page_size(score.avg_page_size_bytes)}</div>
+        </div>
         <div class="summary-card">
             <div class="label">{t("report.urls_total")}</div>
             <div class="value">{summary.total_urls}</div>
@@ -248,6 +283,9 @@ class Reporter:
                 <th>URL</th>
                 <th>HTTP</th>
                 <th>{t("report.load_time")}</th>
+                <th>{t("report.dom_content_loaded")}</th>
+                <th>{t("report.requests")}</th>
+                <th>{t("table.col_size")}</th>
                 <th>Console</th>
                 <th>404</th>
                 <th>4xx</th>
@@ -260,7 +298,9 @@ class Reporter:
         </tbody>
     </table>
 
-    <p class="footer">Console Error Scanner v1.0.0 | {timestamp}</p>
+    {top_sections_html}
+
+    <p class="footer">Console Error Scanner v{__version__} | {timestamp}</p>
 </body>
 </html>"""
 
@@ -269,6 +309,65 @@ class Reporter:
         path.write_text(html, encoding="utf-8")
 
         return str(path.resolve())
+
+
+def _score_class(score: int) -> str:
+    """CSS-Klasse (ok/warning/error) zum Site-Score - gleiche Schwellen wie TUI.
+
+    Args:
+        score:
+            Site-Score 0-100.
+
+    Returns:
+        "ok" (>=75), "warning" (>=45) oder "error".
+    """
+    if score >= 75:
+        return "ok"
+    if score >= 45:
+        return "warning"
+    return "error"
+
+
+def _top_list_html(title: str, entries: list[tuple[str, str, int]]) -> str:
+    """Baut eine "Top-Liste"-Sektion (Balken + Wert + Link) fuer den Report.
+
+    Args:
+        title:
+            Ueberschrift der Sektion.
+        entries:
+            Liste aus (url, wert_label, wert) - der Balken ist relativ zum
+            groessten Wert.
+
+    Returns:
+        HTML-Fragment oder leerer String, falls keine Eintraege.
+    """
+    if not entries:
+        return ""
+    max_val = max((v for _, _, v in entries), default=1) or 1
+    rows = []
+    for url, value_str, value in entries:
+        pct = max(2, round(100 * value / max_val)) if max_val else 0
+        rows.append(
+            f"<div class='top-row'>"
+            f"<span class='top-val'>{_html_escape(value_str)}</span>"
+            f"<div class='top-bar'><div class='top-fill' style='width:{pct}%'></div></div>"
+            f"<a class='top-url' href='{_html_escape(url)}' target='_blank'>{_html_escape(url)}</a>"
+            f"</div>"
+        )
+    return f"<section class='top-section'><h2>{_html_escape(title)}</h2>{''.join(rows)}</section>"
+
+
+def _fmt_ms(ms: int) -> str:
+    """Formatiert eine Millisekunden-Zeit fuer den Report.
+
+    Args:
+        ms:
+            Zeit in Millisekunden (0 = nicht erfasst).
+
+    Returns:
+        z.B. "1500ms" oder "-" bei 0.
+    """
+    return f"{ms}ms" if ms > 0 else "-"
 
 
 def _html_escape(text: str) -> str:
