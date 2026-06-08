@@ -432,6 +432,14 @@ class Scanner:
 
             page.on("requestfailed", on_request_failed)
 
+            # Request-Zaehler: ALLE Requests der Seite (wie Edge-Netzwerkmonitor).
+            request_counter = {"n": 0}
+
+            def on_request(_request):
+                request_counter["n"] += 1
+
+            page.on("request", on_request)
+
             # Seite laden
             start_time = time.monotonic()
             response = await page.goto(
@@ -487,6 +495,37 @@ class Scanner:
             result.resource_sizes = [
                 ResourceSize(url=u, size_bytes=b, resource_type=url_types.get(u, "")) for u, b in top
             ]
+
+            # Request-Anzahl uebernehmen (alle bis hierher beobachteten Requests,
+            # inkl. der per Lazy-Load nachgeladenen).
+            result.request_count = request_counter["n"]
+
+            # Ladezeit aus der Navigation Timing API (Browser-eigene Messung,
+            # gleiche Semantik wie DevTools 'Load' / 'DOMContentLoaded'). Das ist
+            # aussagekraeftiger als die Wall-Clock goto->networkidle. Hinweis:
+            # unter parallelem Scan (mehrere Tabs) sind die ABSOLUTEN Werte
+            # contention-behaftet - fuer den relativen Vergleich innerhalb eines
+            # Scans dennoch brauchbar. Fallback bleibt die Wall-Clock-Messung.
+            try:
+                timing = await page.evaluate(
+                    """() => {
+                        const nav = performance.getEntriesByType('navigation')[0];
+                        if (!nav) return null;
+                        return {
+                            load: nav.loadEventEnd,
+                            dcl: nav.domContentLoadedEventEnd,
+                        };
+                    }"""
+                )
+            except Exception:
+                timing = None
+            if timing:
+                load_ms = int(timing.get("load") or 0)
+                dcl_ms = int(timing.get("dcl") or 0)
+                if load_ms > 0:
+                    result.load_time_ms = load_ms
+                if dcl_ms > 0:
+                    result.dom_content_loaded_ms = dcl_ms
 
             # Doubletten entfernen: gleiche (error_type, message, source) nur einmal
             seen = set()

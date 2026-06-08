@@ -75,7 +75,13 @@ class ScanResult:
     url: str
     status: PageStatus = PageStatus.PENDING
     http_status_code: int = 0
+    # Ladezeit: Browser-Load-Event (Navigation Timing 'loadEventEnd'), Fallback
+    # auf die Wall-Clock-Messung goto->networkidle. Siehe Scanner.
     load_time_ms: int = 0
+    # DOMContentLoaded-Zeit (Navigation Timing 'domContentLoadedEventEnd'), ms.
+    dom_content_loaded_ms: int = 0
+    # Anzahl ALLER Requests der Seite (wie Edge-Netzwerkmonitor).
+    request_count: int = 0
     page_size_bytes: int = 0
     errors: list[PageError] = field(default_factory=list)
     retry_count: int = 0
@@ -163,6 +169,8 @@ class ScanResult:
             "status": self.status.value,
             "http_status_code": self.http_status_code,
             "load_time_ms": self.load_time_ms,
+            "dom_content_loaded_ms": self.dom_content_loaded_ms,
+            "request_count": self.request_count,
             "page_size_bytes": self.page_size_bytes,
             "total_errors": self.total_error_count,
             "console_errors": self.console_error_count,

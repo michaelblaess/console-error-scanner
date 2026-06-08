@@ -143,8 +143,13 @@ class PreviewPanel(Widget):
         color: $text;
     }
     PreviewPanel .graphics-image {
+        /* Beide Dimensionen auto = "contain": das Bild wird so skaliert, dass es
+           vollstaendig ins Panel passt und dabei IMMER sein Seitenverhaeltnis
+           behaelt - auch wenn das Fenster schmaler/niedriger wird. Mit
+           "height: 1fr" (fixe Hoehe) wurde die Breite zwar an die Panelbreite
+           geklemmt, die Hoehe blieb aber voll -> bei schmalem Fenster gestaucht. */
         width: auto;
-        height: 1fr;
+        height: auto;
     }
     """
 
