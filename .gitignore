@@ -21,4 +21,5 @@ history/
 
 # Lokale Tool-/Session-Verzeichnisse und Test-Artefakte
 .claude/
-sitemap_*.xml
+# Alle XML-Dateien sind lokale Test-Sitemaps, keine gehoeren ins Repo
+*.xml
