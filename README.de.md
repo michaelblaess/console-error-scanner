@@ -187,6 +187,7 @@ Die Bindings sind über alle TUIs von Michael einheitlich (`c` = Crawl, `s` = Se
 | `F10` | Top-10-Fehler-Diagramm |
 | `/` | Filter-Eingabe fokussieren |
 | `ESC` | Filter leeren / Dialog schließen |
+| `?` | HTTP-Statuscode-Referenz |
 | `i` | About-Dialog |
 | `q` | Beenden |
 

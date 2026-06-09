@@ -68,6 +68,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         Binding("l,L", "toggle_log", "placeholder", key_display="l"),
         Binding("d,D", "copy_details", "placeholder", key_display="d"),
         Binding("z,Z", "show_summary", "placeholder", key_display="z"),
+        Binding("question_mark", "show_http_codes", "placeholder", key_display="?"),
         Binding("f10", "show_top_errors", "placeholder", key_display="F10"),
         Binding("slash", "focus_filter", "Filter", key_display="/", show=False),
         Binding("escape", "unfocus_filter", "placeholder", show=False),
@@ -89,6 +90,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         "copy_details": "copy_details",
         "show_top_errors": "top_errors",
         "show_summary": "summary",
+        "show_http_codes": "http_codes",
         "show_about": "info",
     }
 
@@ -1049,6 +1051,12 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             table.focus()
 
     # --- About / Settings / History / Theme --------------------------------
+
+    def action_show_http_codes(self) -> None:
+        """Zeigt die HTTP-Statuscode-Referenz aus textual-widgets an."""
+        from textual_widgets import HttpStatusScreen
+
+        self.push_screen(HttpStatusScreen(lang=current_language()))
 
     def action_show_about(self) -> None:
         """Zeigt den standardisierten About-Dialog aus textual-widgets an."""

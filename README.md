@@ -187,6 +187,7 @@ The bindings are unified across all of Michael's TUIs (`c` = crawl, `s` = settin
 | `F10` | Top 10 errors chart |
 | `/` | Focus the filter input |
 | `ESC` | Clear filter / close dialog |
+| `?` | HTTP status code reference |
 | `i` | About dialog |
 | `q` | Quit |
 
