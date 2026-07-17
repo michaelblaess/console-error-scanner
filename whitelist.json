@@ -20,6 +20,8 @@
     "*https://az416426.vo.msecnd.net/scripts/a/ai.0.js*",
     "*net::ERR_NETWORK_CHANGED*",
     "*Fehlender Consent: Easy-feedback*",
-    "*carouselWrapper is not initialized yet.*"
+    "*carouselWrapper is not initialized yet.*",
+    "*has not been started within * seconds*",
+    "*jQuery is not defined*"
   ]
 }
