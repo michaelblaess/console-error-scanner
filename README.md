@@ -17,7 +17,7 @@
 [![Python](https://img.shields.io/badge/python-3.10+-3b82f6?logo=python&logoColor=white)](https://www.python.org/)
 
 TUI tool for automatically scanning websites for JavaScript console errors and HTTP errors (404, 5xx).
-The input is a website URL or sitemap URL (XML). For domain URLs, the sitemap is found automatically via robots.txt and typical paths. Results are displayed live in a terminal UI and can be exported as HTML and JSON reports.
+The input is a website URL or sitemap URL (XML). For domain URLs, the sitemap is found automatically via robots.txt and typical paths. Results are displayed live in a terminal UI and can be exported as HTML and JSON reports, or copied as a JIRA table (Markdown or wiki markup) straight to the clipboard.
 
 ## Screenshots
 
@@ -159,8 +159,9 @@ CLI flags override the persisted settings for the current run. Everything except
 - **Failed requests**: Detects aborted/failed network requests
 - **Cookie authentication**: Access to protected test environments
 - **Whitelist**: Ignore known errors via wildcard patterns (e.g. attachShadow, AppInsights). Press `w` to inspect the loaded patterns and their hit counts
+- **JIRA export**: `j` copies a table of the error pages (URL, HTTP, status, error counts, details) to the clipboard, ready to paste into a ticket. Default is Markdown for Jira Cloud (auto-converted into a real table on paste); wiki markup for older Server/Data Center instances is selectable under Settings > Export
 - **Hover-clickable links** throughout: every URL and file path in logs, detail pane, dialogs and notifications opens in the OS default browser/file manager - no CTRL needed
-- **Settings dialog** (`s`): centralized config for concurrency, timeout, console-level, headless, consent, lazy-loading, whitelist path, user-agent, cookies, page preview, the size-warning threshold (MB) and the site-score weighting - with info-icon tooltips and a storage-paths tab
+- **Settings dialog** (`s`): centralized config for concurrency, timeout, console-level, headless, consent, lazy-loading, whitelist path, user-agent, cookies, page preview, the size-warning threshold (MB), the site-score weighting and the JIRA table format - with info-icon tooltips and a storage-paths tab
 - **Live updates**: Results appear immediately in the table during the scan
 - **Auto-scroll**: The table scrolls along automatically to the currently scanned URL
 - **36 retro themes**: Pick via Ctrl+P or cycle with `t` (persistent)
@@ -348,7 +349,7 @@ src/console_error_scanner/
     settings.py         BaseSettingsScreen: Scanner tab + Language tab + Storage paths tab
   services/
     scanner.py          Playwright scanner (retry, recovery, response headers capture)
-    reporter.py         HTML + JSON report generator
+    reporter.py         HTML + JSON report + JIRA table generator
     preview_service.py  Playwright sidecar + disk cache for preview screenshots
     image_clipboard.py  Cross-platform image-to-clipboard (Win: pywin32, macOS: osascript,
                         Linux: xclip/wl-copy)

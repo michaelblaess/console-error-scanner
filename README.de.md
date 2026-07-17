@@ -17,7 +17,7 @@
 [![Python](https://img.shields.io/badge/python-3.10+-3b82f6?logo=python&logoColor=white)](https://www.python.org/)
 
 TUI-Tool zum automatischen Scannen von Websites auf JavaScript Console-Errors und HTTP-Fehler (404, 5xx).
-Eingabe ist eine Website-URL oder Sitemap-URL (XML). Bei Domain-URLs wird die Sitemap automatisch über robots.txt und typische Pfade gefunden. Ergebnisse werden live in einer Terminal-UI angezeigt und können als HTML- und JSON-Reports exportiert werden.
+Eingabe ist eine Website-URL oder Sitemap-URL (XML). Bei Domain-URLs wird die Sitemap automatisch über robots.txt und typische Pfade gefunden. Ergebnisse werden live in einer Terminal-UI angezeigt und können als HTML- und JSON-Reports exportiert oder als JIRA-Tabelle (Markdown oder Wiki Markup) direkt in die Zwischenablage kopiert werden.
 
 ## Screenshots
 
@@ -159,8 +159,9 @@ CLI-Flags überschreiben die persistierten Einstellungen für den aktuellen Lauf
 - **Fehlgeschlagene Requests**: Erkennt abgebrochene/fehlgeschlagene Netzwerk-Requests
 - **Cookie-Authentifizierung**: Zugriff auf geschützte Testumgebungen
 - **Whitelist**: Bekannte Fehler per Wildcard-Pattern ignorieren (z.B. attachShadow, AppInsights). Mit `w` öffnet sich der Whitelist-Viewer mit Pattern-Liste und Trefferzahlen
+- **JIRA-Export**: `j` kopiert eine Tabelle der Fehler-Seiten (URL, HTTP, Status, Fehler-Anzahlen, Details) in die Zwischenablage - direkt in ein Ticket einfügbar. Default ist Markdown für Jira Cloud (wird beim Einfügen automatisch in eine echte Tabelle umgewandelt); Wiki Markup für ältere Server/Data-Center-Instanzen ist unter Einstellungen > Export wählbar
 - **Hover-klickbare Links** überall: jede URL und jeder Pfad in Logs, Detail-Ansicht, Dialogen und Toasts öffnet im OS-Standard-Browser/Dateimanager — kein STRG nötig
-- **Einstellungs-Dialog** (`s`): zentrale Konfiguration für Concurrency, Timeout, Console-Level, Headless, Consent, Lazy-Loading, Whitelist-Pfad, User-Agent, Cookies, Seiten-Vorschau, den Größen-Warnschwellwert (MB) und die Site-Score-Gewichtung — mit Info-Icon-Tooltips und Speicherort-Tab
+- **Einstellungs-Dialog** (`s`): zentrale Konfiguration für Concurrency, Timeout, Console-Level, Headless, Consent, Lazy-Loading, Whitelist-Pfad, User-Agent, Cookies, Seiten-Vorschau, den Größen-Warnschwellwert (MB), die Site-Score-Gewichtung und das JIRA-Tabellenformat - mit Info-Icon-Tooltips und Speicherort-Tab
 - **Live-Updates**: Ergebnisse erscheinen sofort während des Scans in der Tabelle
 - **Auto-Scroll**: Tabelle scrollt automatisch zur aktuell gescannten URL mit
 - **36 Retro-Themes**: Ctrl+P öffnet den Theme-Picker, `t` schaltet zum nächsten weiter (persistent)
@@ -348,7 +349,7 @@ src/console_error_scanner/
     settings.py         BaseSettingsScreen: Scanner-Tab + Sprach-Tab + Speicherort-Tab
   services/
     scanner.py          Playwright Scanner (Retry, Recovery, Response-Headers)
-    reporter.py         HTML + JSON Report-Generator
+    reporter.py         HTML + JSON Report + JIRA-Tabellen-Generator
     preview_service.py  Playwright-Sidecar + Disk-Cache für Vorschau-Screenshots
     image_clipboard.py  Cross-Plattform Image-to-Clipboard (Win: pywin32, macOS: osascript,
                         Linux: xclip/wl-copy)
