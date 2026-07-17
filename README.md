@@ -179,6 +179,7 @@ The bindings are unified across all of Michael's TUIs (`c` = crawl, `s` = settin
 | `s` | Settings dialog |
 | `h` | Scan history |
 | `r` | Save HTML + JSON reports |
+| `j` | Copy a JIRA table of the error pages to the clipboard (Markdown for Jira Cloud, or wiki markup - configurable under Settings > Export) |
 | `w` | Show the loaded whitelist patterns + hit counts |
 | `e` | Show only pages with errors (toggle) |
 | `t` | Cycle to the next retro theme (Ctrl+P for full picker) |
