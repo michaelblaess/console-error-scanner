@@ -62,6 +62,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         Binding("s,S", "show_settings", "placeholder", key_display="s"),
         Binding("h,H", "show_history", "placeholder", key_display="h"),
         Binding("r,R", "save_reports", "placeholder", key_display="r"),
+        Binding("j,J", "export_jira", "placeholder", key_display="j"),
         Binding("w,W", "show_whitelist", "placeholder", key_display="w"),
         Binding("e,E", "toggle_errors", "placeholder", key_display="e"),
         Binding("t,T", "cycle_theme", "placeholder", key_display="t"),
@@ -83,6 +84,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         "show_settings": "settings",
         "show_history": "history",
         "save_reports": "report",
+        "export_jira": "jira",
         "show_whitelist": "whitelist",
         "toggle_errors": "errors_only",
         "cycle_theme": "theme",
@@ -1074,6 +1076,27 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
                 self._results, summary, self.output_html, error_weight=self._settings.score_error_weight
             )
             self._write_log(f"[green]{t('log.html_report', path=self.link_markup(path, path))}[/green]")
+
+    def action_export_jira(self) -> None:
+        """Kopiert eine JIRA-Tabelle der Fehler-Seiten in die Zwischenablage.
+
+        Format (Markdown fuer Jira Cloud oder Wiki Markup) kommt aus den
+        Einstellungen (jira_format).
+        """
+        if not self._results:
+            self.notify(t("notify.no_url_selected"), severity="warning")
+            return
+
+        table_text = Reporter.generate_jira_table(self._results, fmt=self._settings.jira_format)
+        if not table_text:
+            self._write_log(t("log.no_errors_jira"))
+            self.notify(t("notify.no_errors_jira"), severity="information")
+            return
+
+        self.copy_to_clipboard(table_text)
+        error_count = sum(1 for r in self._results if r.has_issues)
+        self._write_log(t("log.jira_copied", count=error_count))
+        self.notify(t("notify.jira_copied", count=error_count))
 
     def action_copy_details(self) -> None:
         """Kopiert die Detail-Ansicht (rechter Bereich) in die Zwischenablage."""

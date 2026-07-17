@@ -179,6 +179,7 @@ Die Bindings sind über alle TUIs von Michael einheitlich (`c` = Crawl, `s` = Se
 | `s` | Einstellungs-Dialog |
 | `h` | Scan-History |
 | `r` | HTML + JSON Reports speichern |
+| `j` | JIRA-Tabelle der Fehler-Seiten in die Zwischenablage kopieren (Markdown für Jira Cloud oder Wiki Markup - konfigurierbar unter Einstellungen > Export) |
 | `w` | Geladene Whitelist-Patterns + Trefferzahlen anzeigen |
 | `e` | Nur Seiten mit Fehlern anzeigen (Toggle) |
 | `t` | Zum nächsten Retro-Theme wechseln (Ctrl+P für vollen Picker) |
