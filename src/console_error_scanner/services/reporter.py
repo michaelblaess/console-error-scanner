@@ -35,6 +35,27 @@ class Reporter:
         Returns:
             Absoluter Pfad der gespeicherten Datei.
         """
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(Reporter.build_json(results, summary, error_weight), encoding="utf-8")
+
+        return str(path.resolve())
+
+    @staticmethod
+    def build_json(results: list[ScanResult], summary: ScanSummary, error_weight: int = 60) -> str:
+        """Baut den JSON-Report als String (fuer Datei ODER Zwischenablage).
+
+        Args:
+            results:
+                Die zu exportierenden Scan-Ergebnisse.
+            summary:
+                Passende Zusammenfassung zu den Ergebnissen.
+            error_weight:
+                Gewicht der Fehlerquote (Prozent) fuer den Site-Score.
+
+        Returns:
+            JSON-String (indentiert, mit echten Umlauten).
+        """
         score = compute_site_score(results, error_weight=error_weight)
         report = {
             "generated_at": datetime.now().isoformat(),
@@ -42,12 +63,29 @@ class Reporter:
             "site_score": score.to_dict(),
             "results": [r.to_dict() for r in results],
         }
+        return json.dumps(report, indent=2, ensure_ascii=False)
 
-        path = Path(output_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    @staticmethod
+    def build_text(results: list[ScanResult]) -> str:
+        """Baut eine lesbare Plaintext-Liste der Ergebnisse fuer die Zwischenablage.
 
-        return str(path.resolve())
+        Pro Seite eine Kopfzeile (Status, URL, HTTP) und darunter die aktiven
+        (nicht-whitelisted) Fehler eingerueckt.
+
+        Args:
+            results:
+                Die zu exportierenden Scan-Ergebnisse.
+
+        Returns:
+            Plaintext-String (leer, wenn keine Ergebnisse).
+        """
+        lines: list[str] = []
+        for r in results:
+            http = str(r.http_status_code) if r.http_status_code else "-"
+            lines.append(f"{r.status_icon} {r.url} (HTTP {http})")
+            for detail in Reporter._error_details(r):
+                lines.append(f"    {detail}")
+        return "\n".join(lines)
 
     @staticmethod
     def save_html(

@@ -149,7 +149,7 @@ CLI-Flags überschreiben die persistierten Einstellungen für den aktuellen Lauf
 - **Seiten-Vorschau**: Optionaler Playwright-Sidecar rendert in der Detail-Ansicht einen Screenshot der markierten URL (TGP/Sixel-Terminals) mit persistentem Disk-Cache (HTTP-Validator + TTL). Rechtsklick auf das Bild kopiert es in die Zwischenablage (Drag-and-Drop in JIRA / Slack)
 - **Site-Score**: Nach jedem Scan wird ein 0-100-Score (Note A-F) aus dem Anteil fehlerfreier Seiten und dem durchschnittlichen Seitengewicht berechnet - die Gewichtung ist einstellbar. Er erscheint farbcodiert im Header-Titel und in einem automatisch öffnenden Zusammenfassungs-Modal mit den Findings und den größten Seiten und den größten Einzelressourcen ("Speicherfresser") als Balken-Charts
 - **Diät-Ratgeber**: Rechtsklick auf eine Zeile -> "Diät-Ratgeber" öffnet pro Seite ein Balken-Chart der größten Ressourcen (der "dicken Brocken"), damit sofort sichtbar ist, was die Seite fett macht
-- **Rechtsklick-Kontextmenü** auf Ergebniszeilen: URL im Browser öffnen, URL kopieren, Details anzeigen, Diät-Ratgeber, Details kopieren, URL erneut scannen, Nur-Fehler-Filter
+- **Rechtsklick-Kontextmenü** auf Ergebniszeilen: URL im Browser öffnen, URL kopieren, Details anzeigen, Diät-Ratgeber, Details kopieren, die sichtbaren Zeilen als JIRA / JSON / Text in die Zwischenablage exportieren, URL erneut scannen, Nur-Fehler-Filter
 - **Seitengewicht-Spalte**: Die Spalte "Größe" zeigt das echte Transfergewicht (Summe der Same-Host-Ressourcen über die tatsächliche Antwortgröße, gestreamte Videos/Audios ausgeschlossen, jede Ressource einmal gezählt). Ein einstellbarer Schwellwert hebt zu große Seiten rot mit Warn-Symbol hervor; der Spaltenkopf-Tooltip erklärt die genaue Definition
 - **Ladezeit & Requests**: Die Spalte "Zeit" zeigt die Browser-Ladezeit bis zum Load-Event (Navigation Timing API, gleiche Semantik wie DevTools "Load"), die Spalte "Req" die Gesamtzahl aller Requests der Seite (wie der Edge-Netzwerkmonitor). Beide sind sortierbar; das Detail-Panel zeigt zusätzlich DOMContentLoaded. Hinweis: beim parallelen Scan sind die absoluten Ladezeiten contention-behaftet und nur relativ innerhalb eines Scans vergleichbar (siehe Spaltenkopf-Tooltip)
 - **Sortierbare Spalten**: Klick auf einen Spaltenkopf sortiert auf-/absteigend mit ▲/▼-Indikator
@@ -199,7 +199,7 @@ Die Bindings sind über alle TUIs von Michael einheitlich (`c` = Crawl, `s` = Se
 
 **Auf einer Ergebniszeile**:
 - Einfacher Links-Klick markiert die Zeile; **Doppelklick (oder Enter) öffnet das Detailfenster**
-- Rechtsklick = Kontextmenü mit `URL im Browser öffnen`, `URL kopieren`, `Details anzeigen`, `Diät-Ratgeber`, `Details kopieren`, `URL erneut scannen`, `Nur Fehler anzeigen / Alle anzeigen`
+- Rechtsklick = Kontextmenü mit `URL im Browser öffnen`, `URL kopieren`, `Details anzeigen`, `Diät-Ratgeber`, `Details kopieren`, `Export JIRA`, `Export JSON`, `Export Text (Zwischenablage)`, `URL erneut scannen`, `Nur Fehler anzeigen / Alle anzeigen`
 
 ## Whitelist
 

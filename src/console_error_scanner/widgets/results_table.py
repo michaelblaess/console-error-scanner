@@ -560,6 +560,18 @@ class ResultsTable(Vertical):
         self._apply_filter()
         return self._show_only_errors
 
+    def visible_results(self) -> list[ScanResult]:
+        """Gibt die aktuell sichtbaren (gefilterten und sortierten) Ergebnisse zurueck.
+
+        Beruecksichtigt den Fehler-Filter (_show_only_errors), den Textfilter und
+        die aktive Sortierung - also genau das, was der Benutzer in der Tabelle
+        sieht. Rueckgabe ist eine Kopie, damit Aufrufer sie gefahrlos exportieren.
+
+        Returns:
+            Kopie der sichtbaren Scan-Ergebnisse in Anzeigereihenfolge.
+        """
+        return list(self._filtered)
+
     def get_selected_result(self) -> ScanResult | None:
         """Gibt das aktuell ausgewaehlte Ergebnis zurueck."""
         table = self.query_one("#results-data", DataTable)
