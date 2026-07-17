@@ -703,6 +703,10 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             ContextMenuItem("diet", t("ctx.diet")),
             ContextMenuItem("copy_details", t("ctx.copy_details")),
             ContextMenuItem.separator(),
+            ContextMenuItem("export_jira", t("ctx.export_jira")),
+            ContextMenuItem("export_json", t("ctx.export_json")),
+            ContextMenuItem("export_text", t("ctx.export_text")),
+            ContextMenuItem.separator(),
             ContextMenuItem("rescan", t("ctx.rescan"), enabled=not self._scan_running),
             ContextMenuItem.separator(),
             ContextMenuItem("toggle_errors", filter_label),
@@ -741,10 +745,52 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             stats = self.query_one("#stats-panel", StatsPanel)
             stats.show_result(result)
             self.action_copy_details()
+        elif choice == "export_jira":
+            self._export_visible_jira()
+        elif choice == "export_json":
+            self._export_visible_json()
+        elif choice == "export_text":
+            self._export_visible_text()
         elif choice == "rescan":
             self._rescan_single(result)
         elif choice == "toggle_errors":
             self.action_toggle_errors()
+
+    def _visible_results(self) -> list[ScanResult]:
+        """Liefert die aktuell in der Tabelle sichtbaren (gefilterten) Ergebnisse."""
+        return self.query_one("#results-table", ResultsTable).visible_results()
+
+    def _export_visible_jira(self) -> None:
+        """Kopiert eine JIRA-Tabelle der sichtbaren Fehler-Seiten in die Zwischenablage."""
+        visible = self._visible_results()
+        table_text = Reporter.generate_jira_table(visible, fmt=self._settings.jira_format)
+        if not table_text:
+            self.notify(t("notify.no_errors_jira"), severity="information")
+            return
+        self.copy_to_clipboard(table_text)
+        count = sum(1 for r in visible if r.has_issues)
+        self._write_log(t("log.jira_copied", count=count))
+        self.notify(t("notify.jira_copied", count=count))
+
+    def _export_visible_json(self) -> None:
+        """Kopiert die sichtbaren Ergebnisse als JSON-String in die Zwischenablage."""
+        visible = self._visible_results()
+        if not visible:
+            self.notify(t("notify.not_scanned"), severity="warning")
+            return
+        summary = ScanSummary.from_results(self.sitemap_url, visible)
+        json_text = Reporter.build_json(visible, summary, error_weight=self._settings.score_error_weight)
+        self.copy_to_clipboard(json_text)
+        self.notify(t("notify.json_copied", count=len(visible)))
+
+    def _export_visible_text(self) -> None:
+        """Kopiert die sichtbaren Ergebnisse als Plaintext in die Zwischenablage."""
+        visible = self._visible_results()
+        if not visible:
+            self.notify(t("notify.not_scanned"), severity="warning")
+            return
+        self.copy_to_clipboard(Reporter.build_text(visible))
+        self.notify(t("notify.text_copied", count=len(visible)))
 
     # --- Whitelist-Kontextmenue (Detail-Panel) ------------------------------
 

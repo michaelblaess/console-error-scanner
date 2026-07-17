@@ -1,6 +1,8 @@
-"""Tests fuer den JIRA-Tabellen-Export (Markdown fuer Cloud, Wiki fuer Server/DC)."""
+"""Tests fuer JIRA-Tabellen-, JSON- und Text-Export."""
 
 from __future__ import annotations
+
+import json
 
 import pytest
 
@@ -10,6 +12,7 @@ from console_error_scanner.models.scan_result import (
     PageError,
     PageStatus,
     ScanResult,
+    ScanSummary,
 )
 from console_error_scanner.services.reporter import Reporter
 
@@ -85,3 +88,25 @@ def test_fmt_is_case_insensitive() -> None:
     page = _err_page("https://ex.com/tot")
     assert Reporter.generate_jira_table([page], fmt="WIKI").startswith("||URL||")
     assert Reporter.generate_jira_table([page], fmt="Markdown").startswith("| URL |")
+
+
+def test_build_text_lists_page_header_and_indented_errors() -> None:
+    out = Reporter.build_text([_err_page("https://ex.com/tot")]).splitlines()
+    assert out[0] == "ERR https://ex.com/tot (HTTP 200)"
+    assert out[1] == "    [Console] Uncaught ReferenceError: x is not defined (app.js:42)"
+
+
+def test_build_text_skips_whitelisted() -> None:
+    page = _err_page("https://ex.com/w", whitelisted=True)
+    # Kopfzeile bleibt, aber keine eingerueckte Fehlerzeile
+    assert Reporter.build_text([page]) == "IGN https://ex.com/w (HTTP 200)"
+
+
+def test_build_json_is_parseable_with_results() -> None:
+    pages = [_err_page("https://ex.com/tot")]
+    summary = ScanSummary.from_results("https://ex.com", pages)
+    data = json.loads(Reporter.build_json(pages, summary))
+    assert data["summary"]["sitemap_url"] == "https://ex.com"
+    assert len(data["results"]) == 1
+    assert data["results"][0]["url"] == "https://ex.com/tot"
+    assert "site_score" in data
