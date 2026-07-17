@@ -100,6 +100,7 @@ class Settings:
     show_preview: bool = False
     size_warn_mb: int = 10
     score_error_weight: int = 60
+    proxy_url: str = ""
 
     SETTINGS_DIR = SETTINGS_DIR
     SETTINGS_FILE = SETTINGS_FILE
@@ -121,6 +122,7 @@ class Settings:
             "show_preview": self.show_preview,
             "size_warn_mb": self.size_warn_mb,
             "score_error_weight": self.score_error_weight,
+            "proxy_url": self.proxy_url,
         }
 
     @staticmethod
@@ -154,6 +156,7 @@ class Settings:
                 show_preview=bool(data.get("show_preview", False)),
                 size_warn_mb=int(data.get("size_warn_mb", 10)),
                 score_error_weight=int(data.get("score_error_weight", 60)),
+                proxy_url=str(data.get("proxy_url", "")),
             )
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)

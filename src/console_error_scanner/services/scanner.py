@@ -49,6 +49,7 @@ class Scanner:
         cookies: list[dict[str, str]] | None = None,
         accept_consent: bool = True,
         trigger_lazy_load: bool = True,
+        proxy: str = "",
     ) -> None:
         self.concurrency = concurrency
         self.timeout = timeout
@@ -58,6 +59,8 @@ class Scanner:
         self.cookies = cookies or []
         self.accept_consent = accept_consent
         self.trigger_lazy_load = trigger_lazy_load
+        # Optionaler Corporate-Proxy (Zscaler) fuer httpx UND Playwright.
+        self.proxy_url = proxy.strip()
         self._captured_types = self.CONSOLE_LEVELS.get(console_level, {"error", "warning"})
         self._cancelled = False
         self._browser: Browser | None = None
@@ -82,6 +85,7 @@ class Scanner:
             Die uebergebene Liste der ScanResults.
         """
         self._cancelled = False
+        self._install_loop_noise_filter()
         total = len(results)
         semaphore = asyncio.Semaphore(self.concurrency)
         completed = 0
@@ -111,7 +115,20 @@ class Scanner:
                         on_result(result)
 
                     log(t("scanner.scanning_url", current=index + 1, total=total, url=result.url))
-                    await self._scan_single_page(result, log)
+                    # Harter Wall-Clock-Cap pro URL: garantiert, dass eine
+                    # haengende Seite (egal an welcher Stelle) die gesamte
+                    # gather()-Schleife NICHT blockiert - sonst wird der Scan nie
+                    # fertig und die Zusammenfassung oeffnet sich nie. Grosszuegig
+                    # ueber das volle Retry-Budget bemessen, greift nur bei echten
+                    # Haengern (nicht bei normalen langsamen Seiten/Retries).
+                    try:
+                        await asyncio.wait_for(
+                            self._scan_single_page(result, log),
+                            timeout=self.timeout * (self.MAX_RETRIES + 1),
+                        )
+                    except TimeoutError:
+                        result.status = PageStatus.TIMEOUT
+                        log(f"  [bold red]{t('scanner.hard_timeout', url=result.url)}[/bold red]")
                     completed += 1
 
                     if on_result:
@@ -440,15 +457,28 @@ class Scanner:
 
             page.on("request", on_request)
 
-            # Seite laden
+            # Seite laden. NICHT wait_until="networkidle" als goto-Bedingung:
+            # auf Seiten mit Dauer-Requests (Tracking/Analytics, Long-Poll) wird
+            # networkidle NIE erreicht, der goto laeuft dann jedes Mal in den
+            # vollen Timeout und ×Retries blockiert das eine Seite minutenlang.
+            # Stattdessen auf "load" warten und networkidle nur als KURZE,
+            # gekappte Kulanz best-effort abwarten (fuer spaet feuernde
+            # Console-/CSP-Fehler), Timeout dabei schlucken.
             start_time = time.monotonic()
             response = await page.goto(
                 result.url,
-                wait_until="networkidle",
+                wait_until="load",
                 timeout=self.timeout * 1000,
             )
             elapsed = time.monotonic() - start_time
             result.load_time_ms = int(elapsed * 1000)
+
+            # Kurze networkidle-Kulanz (max. 8s), damit nachgelagerte Requests
+            # und ihre Fehler noch erfasst werden - aber ohne harten Block.
+            with contextlib.suppress(Exception):
+                await page.wait_for_load_state(
+                    "networkidle", timeout=min(self.timeout, 8) * 1000
+                )
 
             if response:
                 result.http_status_code = response.status
@@ -761,12 +791,17 @@ class Scanner:
             "--no-sandbox",
         ]
 
+        # Playwright-Chromium liest Proxy NICHT aus den Umgebungsvariablen -
+        # er muss explizit als launch-Argument uebergeben werden.
+        proxy = {"server": self.proxy_url} if self.proxy_url else None
+
         # System-Chrome bevorzugen
         try:
             return await self._playwright.chromium.launch(
                 channel="chrome",
                 headless=self.headless,
                 args=launch_args,
+                proxy=proxy,
             )
         except Exception:
             pass
@@ -775,6 +810,7 @@ class Scanner:
         return await self._playwright.chromium.launch(
             headless=self.headless,
             args=launch_args,
+            proxy=proxy,
         )
 
     async def _check_network(self) -> bool:
@@ -784,7 +820,7 @@ class Scanner:
             True wenn Netzwerk verfuegbar.
         """
         try:
-            async with httpx.AsyncClient(timeout=5.0, verify=False) as client:
+            async with httpx.AsyncClient(timeout=5.0, verify=False, proxy=self.proxy_url or None) as client:
                 response = await client.head("https://www.google.com")
                 return response.status_code < 500
         except Exception:
@@ -801,6 +837,56 @@ class Scanner:
             if await self._check_network():
                 return
             await asyncio.sleep(2)
+
+    def _install_loop_noise_filter(self) -> None:
+        """Filtert benignes Playwright-Teardown-Rauschen aus dem asyncio-Loop.
+
+        Wird der Scan beim Beenden/Abbruch unterbrochen, waehrend noch ein
+        ``page.goto(...)`` laeuft, bricht Playwright die Navigation ab und setzt
+        ``net::ERR_ABORTED`` (bzw. 'frame was detached' / 'browser has been
+        closed') NACHTRAEGLICH auf das interne Protokoll-Future. Die awaitende
+        Coroutine ist da aber schon abgebrochen - das Future-Ergebnis wird nie
+        abgeholt, und beim Garbage-Collecten meldet asyncio
+        'Future exception was never retrieved' auf stderr. Das laeuft ueber
+        ``loop.call_exception_handler`` (NICHT ueber ``sys.unraisablehook``),
+        daher greift der Proactor-Filter aus __main__ hier nicht.
+
+        Wir setzen einen Wrapper-Handler auf den laufenden Loop, der GENAU diese
+        benignen Faelle schluckt und alles andere unveraendert an den vorigen
+        bzw. den Default-Handler weiterreicht (keine echten Fehler verstecken).
+        Der Handler bleibt absichtlich bis Programmende installiert - das
+        verwaiste Future kann erst beim spaeteren GC (nach dem Scan/beim Quit)
+        einschlagen.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        if getattr(loop, "_ces_noise_filter_installed", False):
+            return
+
+        previous = loop.get_exception_handler()
+
+        def handler(active_loop: asyncio.AbstractEventLoop, context: dict) -> None:
+            message = context.get("message", "")
+            exc = context.get("exception")
+            text = f"{message} {exc!r}"
+            benign = (
+                "ERR_ABORTED" in text
+                or "frame was detached" in text
+                or "has been closed" in text
+                or "Target page, context or browser" in text
+            )
+            if benign and "exception was never retrieved" in message:
+                return
+            if previous is not None:
+                previous(active_loop, context)
+            else:
+                active_loop.default_exception_handler(context)
+
+        loop.set_exception_handler(handler)
+        loop._ces_noise_filter_installed = True  # type: ignore[attr-defined]
 
     def cancel(self) -> None:
         """Bricht den laufenden Scan ab."""

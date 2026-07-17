@@ -143,6 +143,8 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         self.show_preview: bool = self._settings.show_preview
         # Schwellwert (MB) fuer die Gross-Seiten-Hervorhebung in der Tabelle.
         self.size_warn_mb: int = self._settings.size_warn_mb
+        # Optionaler Corporate-Proxy (Zscaler) fuer httpx + Playwright.
+        self.proxy_url: str = self._settings.proxy_url
 
         # Theme aus Settings uebernehmen
         self.theme = self._settings.theme
@@ -151,6 +153,8 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         self._results: list[ScanResult] = []
         self._scanner: Scanner | None = None
         self._whitelist: Whitelist | None = None
+        # Aktionen des Whitelist-Kontextmenues (Index -> (kind, pattern)).
+        self._wl_ctx_actions: list[tuple[str, str]] = []
         self._sitemap_loading: bool = False
         self._sitemap_timer: Timer | None = None
         self._sitemap_dots: int = 0
@@ -343,6 +347,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
                     self.sitemap_url,
                     cookies=self.cookies,
                     log=self._write_log,
+                    proxy=self.proxy_url,
                 )
             except SitemapError as e:
                 self._stop_sitemap_loading()
@@ -354,7 +359,9 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             self._write_log(t("log.loading_sitemap_url", url=self.sitemap_url))
 
         try:
-            parser = SitemapParser(self.sitemap_url, url_filter=self.url_filter, cookies=self.cookies)
+            parser = SitemapParser(
+                self.sitemap_url, url_filter=self.url_filter, cookies=self.cookies, proxy=self.proxy_url
+            )
             self._urls = await parser.parse()
         except SitemapError as e:
             self._stop_sitemap_loading()
@@ -524,6 +531,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             cookies=self.cookies,
             accept_consent=self.accept_consent,
             trigger_lazy_load=self.trigger_lazy_load,
+            proxy=self.proxy_url,
         )
 
         def on_result(result: ScanResult) -> None:
@@ -736,6 +744,130 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         elif choice == "toggle_errors":
             self.action_toggle_errors()
 
+    # --- Whitelist-Kontextmenue (Detail-Panel) ------------------------------
+
+    @staticmethod
+    def _wl_short(message: str) -> str:
+        """Kuerzt eine Fehlermeldung fuer das Menue-Label (erste Zeile, max 50)."""
+        first = (message or "").split("\n", 1)[0].strip()
+        return first if len(first) <= 50 else first[:49] + "…"
+
+    def on_stats_panel_whitelist_menu_requested(
+        self, event: StatsPanel.WhitelistMenuRequested
+    ) -> None:
+        """Rechtsklick im Detail-Panel: Menue zum Whitelisten / Entfernen.
+
+        Eintraege werden nach PATTERN dedupliziert: mehrere Fehler, die dasselbe
+        abgeleitete (Add) bzw. dasselbe matchende Whitelist-Pattern (Remove)
+        haben, ergeben genau EINEN Menue-Eintrag.
+        """
+        result = event.result
+        wl = self._whitelist
+        actions: list[tuple[str, str]] = []
+        items: list[ContextMenuItem] = []
+
+        # Aktive Fehler -> hinzufuegen (dedupe nach abgeleitetem Pattern)
+        seen_add: set[str] = set()
+        for error in result.errors:
+            if error.whitelisted:
+                continue
+            pattern = Whitelist.pattern_for_message(error.message)
+            if not pattern or pattern in seen_add:
+                continue
+            seen_add.add(pattern)
+            items.append(ContextMenuItem(str(len(actions)), t("ctx.wl_add", msg=self._wl_short(error.message))))
+            actions.append(("add", pattern))
+
+        # Ge-whitelistete Fehler -> entfernen (dedupe nach matchendem Pattern;
+        # Label zeigt das PATTERN, da ein Pattern viele Meldungen abdeckt)
+        if wl is not None:
+            seen_rm: set[str] = set()
+            for error in result.errors:
+                if not error.whitelisted:
+                    continue
+                for pattern in wl.patterns_matching(error.message):
+                    if pattern in seen_rm:
+                        continue
+                    seen_rm.add(pattern)
+                    items.append(ContextMenuItem(str(len(actions)), t("ctx.wl_remove", msg=self._wl_short(pattern))))
+                    actions.append(("rm", pattern))
+
+        if not items:
+            return
+        self._wl_ctx_actions = actions
+        self.push_screen(
+            ContextMenuScreen(items, at=(event.screen_x, event.screen_y)),
+            callback=self._on_whitelist_menu,
+        )
+
+    def _on_whitelist_menu(self, choice: str | None) -> None:
+        """Verarbeitet die Auswahl aus dem Whitelist-Kontextmenue."""
+        actions = self._wl_ctx_actions
+        self._wl_ctx_actions = []
+        if choice is None:
+            return
+        try:
+            kind, pattern = actions[int(choice)]
+        except (ValueError, IndexError):
+            return
+
+        wl = self._ensure_whitelist()
+        if wl is None:
+            self.notify(t("ctx.wl_no_file"), severity="error")
+            return
+
+        if kind == "add":
+            if not wl.add_pattern(pattern):
+                self.notify(t("ctx.wl_already"), severity="warning")
+                return
+            if self._persist_and_reapply_whitelist(wl):
+                self.notify(t("ctx.wl_added", pattern=pattern))
+        elif kind == "rm":
+            if not wl.remove_pattern(pattern):
+                self.notify(t("ctx.wl_none_removed"), severity="warning")
+                return
+            if self._persist_and_reapply_whitelist(wl):
+                self.notify(t("ctx.wl_removed", count=1))
+
+    def _ensure_whitelist(self) -> Whitelist | None:
+        """Liefert die aktive Whitelist; legt bei Bedarf eine neue an
+        (whitelist.json im CWD bzw. konfigurierter Pfad)."""
+        if self._whitelist is not None:
+            if not self._whitelist.path:
+                self._whitelist.path = str(Path(self.whitelist_path or "whitelist.json").resolve())
+            return self._whitelist
+        path = self.whitelist_path or str(Path("whitelist.json").resolve())
+        self._whitelist = Whitelist(patterns=[], path=path)
+        self.whitelist_path = path
+        self._settings.whitelist_path = path
+        with contextlib.suppress(Exception):
+            self._settings.save()
+        return self._whitelist
+
+    def _persist_and_reapply_whitelist(self, wl: Whitelist) -> bool:
+        """Speichert die Whitelist und klassifiziert ALLE Ergebnisse neu, dann
+        Tabelle, Detail-Panel und Summary aktualisieren.
+
+        Returns:
+            True bei Erfolg, False wenn das Speichern fehlschlug.
+        """
+        try:
+            wl.save()
+        except Exception as e:
+            self._write_log(f"[red]{t('log.whitelist_error', error=e)}[/red]")
+            self.notify(t("ctx.wl_save_failed"), severity="error")
+            return False
+        for r in self._results:
+            wl.reclassify(r)
+        table = self.query_one("#results-table", ResultsTable)
+        for r in self._results:
+            table.update_result(r)
+        with contextlib.suppress(Exception):
+            self.query_one("#stats-panel", StatsPanel).refresh_view()
+        with contextlib.suppress(Exception):
+            self.query_one("#summary", SummaryHeader).update_from_results(self._results)
+        return True
+
     @work(exclusive=False, group="rescan")
     async def _rescan_single(self, result: ScanResult) -> None:
         """Scannt EINE einzelne URL erneut, ohne den ganzen Lauf neu zu starten.
@@ -774,6 +906,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             cookies=self.cookies,
             accept_consent=self.accept_consent,
             trigger_lazy_load=self.trigger_lazy_load,
+            proxy=self.proxy_url,
         )
 
         def on_result(updated: ScanResult) -> None:
@@ -820,7 +953,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         panel = self.query_one("#preview-panel", PreviewPanel)
         panel.show_loading(url)
         if self._preview_service is None:
-            self._preview_service = PreviewService()
+            self._preview_service = PreviewService(proxy=self.proxy_url)
         # on_phase aktualisiert die Live-Phase im Panel. Der Worker laeuft im
         # Textual-Event-Loop, daher ist der direkte Widget-Zugriff sicher.
         data = await self._preview_service.capture(url, on_phase=panel.set_phase)
@@ -1093,6 +1226,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             "user_agent": self._settings.user_agent,
             "cookies": self._settings.cookies,
             "whitelist_path": self._settings.whitelist_path,
+            "proxy_url": self._settings.proxy_url,
         }
         self.push_screen(
             ScannerSettingsScreen(current, lang=current_language()),
@@ -1122,6 +1256,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             "user_agent": self._settings.user_agent,
             "cookies": self._settings.cookies,
             "whitelist_path": self._settings.whitelist_path,
+            "proxy_url": self._settings.proxy_url,
         }
 
         old_whitelist_path = self._settings.whitelist_path
@@ -1141,6 +1276,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         self._settings.score_error_weight = int(
             str(result.get("score_error_weight", self._settings.score_error_weight))
         )
+        self._settings.proxy_url = str(result.get("proxy_url", self._settings.proxy_url))
         self._settings.save()
 
         # Runtime-Werte fuer den naechsten Scan aktualisieren
@@ -1154,6 +1290,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         self.user_agent = self._settings.user_agent
         self.cookies = parse_cookies(self._settings.cookies)
         self.size_warn_mb = self._settings.size_warn_mb
+        self.proxy_url = self._settings.proxy_url
         # Tabelle sofort neu einfaerben (kein Neu-Scan noetig).
         with contextlib.suppress(Exception):
             self.query_one("#results-table", ResultsTable).set_size_warn_mb(self.size_warn_mb)

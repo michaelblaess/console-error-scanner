@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from fnmatch import fnmatch
@@ -97,6 +98,125 @@ class Whitelist:
                 error.whitelisted = True
                 count += 1
         return count
+
+    def reclassify(self, result: ScanResult) -> None:
+        """Setzt das whitelisted-Flag ALLER Errors neu (beide Richtungen).
+
+        Anders als ``apply`` (nur False->True) wird hier auch zurueckgesetzt -
+        noetig nachdem ein Pattern entfernt wurde, damit vorher unterdrueckte
+        Fehler wieder als Fehler erscheinen.
+
+        Args:
+            result:
+                Das ScanResult dessen Errors neu klassifiziert werden.
+        """
+        for error in result.errors:
+            error.whitelisted = self.is_whitelisted(error.message)
+
+    @staticmethod
+    def pattern_for_message(message: str) -> str:
+        """Leitet ein fnmatch-Pattern aus einer Fehlermeldung ab.
+
+        Nimmt die erste Zeile (Stack-Traces ignorieren) und umschliesst sie mit
+        ``*`` - die fnmatch-Sonderzeichen ``[ * ?`` werden literal entschaerft,
+        damit das Pattern die Meldung woertlich matcht. Das Ergebnis ist als
+        Startpunkt gedacht und kann im Whitelist-Editor verfeinert werden.
+
+        Args:
+            message:
+                Die Fehlermeldung.
+
+        Returns:
+            Ein fnmatch-Pattern (z.B. ``*App X has not been started*``) oder "".
+        """
+        first = (message or "").split("\n", 1)[0].strip()
+        if not first:
+            return ""
+        # Reihenfolge wichtig: zuerst '[' escapen (fuegt selbst '[]' ein).
+        first = first.replace("[", "[[]").replace("*", "[*]").replace("?", "[?]")
+        return f"*{first}*"
+
+    def add_pattern(self, pattern: str) -> bool:
+        """Fuegt ein Pattern hinzu (wenn noch nicht vorhanden).
+
+        Args:
+            pattern:
+                Das fnmatch-Pattern.
+
+        Returns:
+            True wenn neu hinzugefuegt, False wenn bereits vorhanden/leer.
+        """
+        pattern = pattern.strip()
+        if not pattern or pattern in self.patterns:
+            return False
+        self.patterns.append(pattern)
+        return True
+
+    def patterns_matching(self, message: str) -> list[str]:
+        """Liefert alle Patterns, die eine Meldung matchen (Reihenfolge erhalten).
+
+        Args:
+            message:
+                Die zu pruefende Meldung.
+
+        Returns:
+            Liste der matchenden Patterns.
+        """
+        if not message:
+            return []
+        message_lower = message.lower()
+        return [p for p in self.patterns if fnmatch(message_lower, p.lower())]
+
+    def remove_pattern(self, pattern: str) -> bool:
+        """Entfernt ein exaktes Pattern.
+
+        Args:
+            pattern:
+                Das zu entfernende Pattern.
+
+        Returns:
+            True wenn entfernt, False wenn nicht vorhanden.
+        """
+        if pattern not in self.patterns:
+            return False
+        self.patterns = [p for p in self.patterns if p != pattern]
+        return True
+
+    def remove_patterns_matching(self, message: str) -> list[str]:
+        """Entfernt alle Patterns, die eine bestimmte Meldung matchen.
+
+        Args:
+            message:
+                Die Fehlermeldung, deren matchende Patterns entfernt werden.
+
+        Returns:
+            Liste der entfernten Patterns.
+        """
+        if not message:
+            return []
+        message_lower = message.lower()
+        removed = [p for p in self.patterns if fnmatch(message_lower, p.lower())]
+        if removed:
+            self.patterns = [p for p in self.patterns if p not in removed]
+        return removed
+
+    def save(self) -> None:
+        """Schreibt die Patterns zurueck in die JSON-Datei (``self.path``).
+
+        Eine vorhandene ``description`` bleibt erhalten. Raises wenn kein Pfad
+        gesetzt ist.
+        """
+        if not self.path:
+            raise ValueError("Whitelist hat keinen Pfad - kann nicht gespeichert werden")
+        file_path = Path(self.path)
+        description = "Known Bugs - diese Fehler werden ignoriert"
+        if file_path.is_file():
+            with contextlib.suppress(Exception):
+                existing = json.loads(file_path.read_text(encoding="utf-8"))
+                if isinstance(existing, dict) and isinstance(existing.get("description"), str):
+                    description = existing["description"]
+        payload = {"description": description, "patterns": self.patterns}
+        file_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
     def __len__(self) -> int:
         """Anzahl der Patterns."""
