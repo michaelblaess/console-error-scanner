@@ -316,6 +316,135 @@ class Reporter:
 
         return str(path.resolve())
 
+    @staticmethod
+    def generate_jira_table(results: list[ScanResult], fmt: str = "markdown") -> str:
+        """Erzeugt eine JIRA-Tabelle mit allen Seiten, die aktive Fehler haben.
+
+        Beruecksichtigt nur nicht-whitelisted Fehler/Warnungen (has_issues).
+        fmt="markdown" erzeugt eine GitHub-Flavored-Markdown-Tabelle fuer Jira
+        Cloud (wird beim Einfuegen automatisch in eine ADF-Tabelle konvertiert -
+        das alte Wiki Markup versteht der Cloud-Editor nicht mehr). fmt="wiki"
+        erzeugt das klassische Wiki Markup fuer Jira Server/Data Center.
+
+        Args:
+            results:
+                Alle Scan-Ergebnisse.
+            fmt:
+                "markdown" (Default, Jira Cloud) oder "wiki" (Server/DC).
+
+        Returns:
+            JIRA-Tabellen-String fuer die Zwischenablage (leer, wenn keine
+            Seite aktive Fehler hat).
+        """
+        errors = [r for r in results if r.has_issues]
+        if not errors:
+            return ""
+
+        if fmt.lower() == "wiki":
+            return Reporter._jira_table_wiki(errors)
+        return Reporter._jira_table_markdown(errors)
+
+    @staticmethod
+    def _jira_table_wiki(errors: list[ScanResult]) -> str:
+        """Baut die klassische Wiki-Markup-Tabelle (Jira Server/DC).
+
+        Args:
+            errors:
+                Seiten mit aktiven Fehlern.
+
+        Returns:
+            Wiki-Markup-Tabelle als String.
+        """
+        lines = [t("jira.header")]
+        for r in errors:
+            http_code = str(r.http_status_code) if r.http_status_code else "-"
+            details = Reporter._error_details(r)
+            # Details mit \\ als Zellen-Umbruch (Wiki-Markup) - vorab joinen,
+            # damit kein Backslash in der f-String-Expression steht.
+            detail_str = " \\\\ ".join(details) if details else "-"
+            # URL als klickbaren JIRA-Link formatieren.
+            lines.append(
+                f"|[{r.url}]|{http_code}|{r.status_icon}|{r.console_error_count}|"
+                f"{r.http_404_count}|{r.http_4xx_count}|{r.http_5xx_count}|{detail_str}|"
+            )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _jira_table_markdown(errors: list[ScanResult]) -> str:
+        """Baut die GFM-Markdown-Tabelle (Jira Cloud, Paste-Konvertierung).
+
+        Args:
+            errors:
+                Seiten mit aktiven Fehlern.
+
+        Returns:
+            Markdown-Tabelle als String.
+        """
+        # Spaltentitel aus dem uebersetzten Wiki-Header ableiten (mehrsprachig,
+        # ohne zweiten i18n-Key): "||A||B||" -> ["A", "B"].
+        titles = [c for c in t("jira.header").split("||") if c]
+        lines = [
+            f"| {' | '.join(titles)} |",
+            f"| {' | '.join('---' for _ in titles)} |",
+        ]
+        for r in errors:
+            http_code = str(r.http_status_code) if r.http_status_code else "-"
+            details = [Reporter._md_cell(d) for d in Reporter._error_details(r)]
+            cells = [
+                Reporter._md_cell(r.url),
+                http_code,
+                r.status_icon,
+                str(r.console_error_count),
+                str(r.http_404_count),
+                str(r.http_4xx_count),
+                str(r.http_5xx_count),
+                "<br>".join(details) if details else "-",
+            ]
+            lines.append(f"| {' | '.join(cells)} |")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _error_details(result: ScanResult) -> list[str]:
+        """Liefert die aktiven (nicht-whitelisted) Fehler einer Seite als Texte.
+
+        Args:
+            result:
+                Das Scan-Ergebnis einer Seite.
+
+        Returns:
+            Liste aus "[TYP] Meldung (Quelle:Zeile)"-Strings.
+        """
+        labels = {
+            "console_error": "Console",
+            "console_warning": "Warning",
+            "http_404": "HTTP 404",
+            "http_4xx": "HTTP 4xx",
+            "http_5xx": "HTTP 5xx",
+        }
+        details = []
+        for e in result.errors:
+            if e.whitelisted:
+                continue
+            tag = labels.get(e.error_type.value, e.error_type.value)
+            source = ""
+            if e.source:
+                source = f" ({e.source}{f':{e.line_number}' if e.line_number else ''})"
+            details.append(f"[{tag}] {e.message}{source}")
+        return details
+
+    @staticmethod
+    def _md_cell(text: str) -> str:
+        """Escapt Pipe und Zeilenumbrueche fuer eine Markdown-Tabellenzelle.
+
+        Args:
+            text:
+                Roher Zelltext.
+
+        Returns:
+            Fuer eine GFM-Tabellenzelle sicherer Text.
+        """
+        return text.replace("|", "\\|").replace("\r", "").replace("\n", "<br>")
+
 
 def _score_class(score: int) -> str:
     """CSS-Klasse (ok/warning/error) zum Site-Score - gleiche Schwellen wie TUI.
