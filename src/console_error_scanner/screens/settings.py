@@ -148,6 +148,22 @@ class ScannerSettingsScreen(BaseSettingsScreen):
                 )
             yield Static(t("settings.proxy_hint"), classes="settings-hint")
 
+        with TabPane(t("settings.tab_export"), id="settings-tab-export"), VerticalScroll():
+            with Horizontal(classes="settings-row"):
+                yield from self._label_with_icon(
+                    t("settings.jira_format_label"), t("settings.jira_format_tip")
+                )
+                yield Select(
+                    [
+                        (t("settings.jira_format_markdown"), "markdown"),
+                        (t("settings.jira_format_wiki"), "wiki"),
+                    ],
+                    value=str(self._settings.get("jira_format", "markdown")),
+                    allow_blank=False,
+                    id="set-jira-format",
+                )
+            yield Static(t("settings.jira_format_hint"), classes="settings-hint")
+
     def _label_with_icon(self, label_text: str, tip: str) -> ComposeResult:
         """Erzeugt Label + (?)-Hover-Tooltip-Icon in der Label-Spalte."""
         with Horizontal(classes="label-with-icon"):
@@ -173,6 +189,9 @@ class ScannerSettingsScreen(BaseSettingsScreen):
         settings["user_agent"] = self.query_one("#set-user-agent", Input).value.strip()
         settings["cookies"] = self.query_one("#set-cookies", Input).value.strip()
         settings["proxy_url"] = self.query_one("#set-proxy-url", Input).value.strip()
+        jira_select = self.query_one("#set-jira-format", Select)
+        jira_value = jira_select.value
+        settings["jira_format"] = str(jira_value) if jira_value is not Select.BLANK else "markdown"
 
     def storage_paths(self) -> list[tuple[str, Path]]:
         """Liefert die Persistenz-Pfade fuer den Speicherort-Tab."""
