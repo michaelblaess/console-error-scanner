@@ -39,13 +39,20 @@ _TTL_SECONDS = 14 * 24 * 3600
 class PreviewService:
     """Erzeugt Seiten-Screenshots ueber eine eigene Playwright-Instanz."""
 
-    def __init__(self, cache_dir: Path | None = None, ttl_seconds: int = _TTL_SECONDS) -> None:
+    def __init__(
+        self,
+        cache_dir: Path | None = None,
+        ttl_seconds: int = _TTL_SECONDS,
+        proxy: str = "",
+    ) -> None:
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self._mem: dict[str, tuple[str, bytes]] = {}
         self._lock = asyncio.Lock()
         self._cache_dir = cache_dir or CACHE_DIR
         self._ttl = ttl_seconds
+        # Optionaler Corporate-Proxy (Zscaler) fuer den Sidecar-Browser.
+        self._proxy = proxy.strip()
 
     async def capture(
         self, url: str, validator: str = "", on_phase: PhaseCallback | None = None
@@ -268,6 +275,7 @@ class PreviewService:
             self._browser = await self._playwright.chromium.launch(
                 headless=True,
                 args=["--disable-gpu", "--disable-dev-shm-usage", "--no-sandbox"],
+                proxy={"server": self._proxy} if self._proxy else None,
             )
         return self._browser
 

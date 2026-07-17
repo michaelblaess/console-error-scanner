@@ -22,6 +22,8 @@ from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
+from textual.events import Click
+from textual.message import Message
 from textual.widgets import Static
 
 from ..i18n import t
@@ -88,12 +90,35 @@ class StatsPanel(VerticalScroll):
     # Schwellwert: ab so vielen HTTP-Headern wird das Panel default collapsed.
     _HEADERS_COLLAPSE_THRESHOLD = 5
 
+    class WhitelistMenuRequested(Message):
+        """Rechtsklick auf das Detail-Panel - App soll das Whitelist-Menue oeffnen.
+
+        Eine pixelgenaue Zuordnung Klick->Fehler quer durch die Rich-Panels
+        waere fragil; die App listet stattdessen die Fehler der Seite im Menue.
+        """
+
+        def __init__(self, result: ScanResult, screen_x: int, screen_y: int) -> None:
+            super().__init__()
+            self.result = result
+            self.screen_x = screen_x
+            self.screen_y = screen_y
+
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self._result: ScanResult | None = None
         # Pro-URL gemerkter Aufgeklappt-Zustand fuer das HTTP-Header-Panel,
         # damit der User-Toggle nicht beim naechsten Highlight zurueckspringt.
         self._headers_expanded: dict[str, bool] = {}
+
+    def on_click(self, event: Click) -> None:
+        """Rechtsklick (Button 3) -> Whitelist-Kontextmenue anfordern.
+
+        Nur wenn ein Result mit mindestens einem Fehler angezeigt wird.
+        """
+        if event.button != 3 or self._result is None or not self._result.errors:
+            return
+        event.stop()
+        self.post_message(self.WhitelistMenuRequested(self._result, event.screen_x, event.screen_y))
 
     def compose(self) -> ComposeResult:
         yield Static(self._placeholder_markup(), id="stats-content", markup=True)

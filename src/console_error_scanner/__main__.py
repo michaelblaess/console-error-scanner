@@ -23,8 +23,34 @@ from console_error_scanner.i18n import SUPPORTED_LANGUAGES, load_locale
 from console_error_scanner.models.settings import Settings
 
 
+def _silence_proactor_teardown_noise() -> None:
+    """Unterdrueckt das bekannte Windows-asyncio-Teardown-Rauschen.
+
+    Auf Windows finalisiert der ProactorEventLoop die Subprocess-/Pipe-
+    Transports des Playwright-Chromium teilweise erst per Garbage-Collector
+    NACH dem (sauberen) App-Ende. Deren ``__del__`` wirft dann
+    'unclosed transport' (ResourceWarning) bzw. 'I/O operation on closed pipe'
+    (ValueError) - reines kosmetisches Rauschen, das ueber ``sys.unraisablehook``
+    auf stderr landet. Wir schlucken GENAU diese Faelle; alles andere geht
+    unveraendert an den Original-Hook (keine echten Fehler werden versteckt).
+    """
+    if sys.platform != "win32":
+        return
+    original = sys.unraisablehook
+
+    def _hook(unraisable: sys.UnraisableHookArgs) -> None:
+        text = f"{unraisable.err_msg or ''} {unraisable.exc_value or ''}"
+        if "closed pipe" in text or "unclosed transport" in text:
+            return
+        original(unraisable)
+
+    sys.unraisablehook = _hook
+
+
 def main() -> None:
     """Haupteinstiegspunkt fuer die CLI."""
+    _silence_proactor_teardown_noise()
+
     settings = Settings.load()
     saved_lang = settings.language
 

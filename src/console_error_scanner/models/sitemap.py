@@ -58,10 +58,12 @@ class SitemapParser:
         sitemap_url: str,
         url_filter: str = "",
         cookies: list[dict[str, str]] | None = None,
+        proxy: str = "",
     ) -> None:
         self.sitemap_url = sitemap_url
         self.url_filter = url_filter
         self.cookies = cookies or []
+        self.proxy = proxy.strip()
 
     async def parse(self) -> list[str]:
         """Laedt die Sitemap und gibt die enthaltenen URLs zurueck.
@@ -109,6 +111,7 @@ class SitemapParser:
                     follow_redirects=True,
                     verify=False,
                     cookies=jar,
+                    proxy=self.proxy or None,
                 ) as client:
                     response = await client.get(self.sitemap_url)
                     response.raise_for_status()
@@ -200,6 +203,7 @@ async def discover_sitemap(
     base_url: str,
     cookies: list[dict[str, str]] | None = None,
     log: callable = None,
+    proxy: str = "",
 ) -> str:
     """Findet die Sitemap-URL fuer eine Domain automatisch.
 
@@ -238,6 +242,7 @@ async def discover_sitemap(
         follow_redirects=True,
         verify=False,
         cookies=jar,
+        proxy=(proxy or "").strip() or None,
     ) as client:
         # Phase 1: robots.txt nach Sitemap-Eintraegen durchsuchen
         robots_url = f"{origin}/robots.txt"
