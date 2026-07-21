@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll
 from textual.widgets import Checkbox, Input, Label, Select, Static, TabPane
+from textual_slider import Slider
 from textual_widgets import BaseSettingsScreen
 
 from ..i18n import t
@@ -46,6 +48,16 @@ class ScannerSettingsScreen(BaseSettingsScreen):
         color: white;
         background: cyan 30%;
     }
+    ScannerSettingsScreen .rate-value {
+        padding: 0 1;
+    }
+    ScannerSettingsScreen .rate-value.off {
+        color: $text-disabled;
+    }
+    ScannerSettingsScreen #set-rate {
+        width: 1fr;
+        margin: 0 1;
+    }
     """
 
     def app_tabs(self) -> ComposeResult:
@@ -66,12 +78,34 @@ class ScannerSettingsScreen(BaseSettingsScreen):
                     id="set-scroll",
                 )
             with Horizontal(classes="settings-row"):
+                yield from self._label_with_icon(t("settings.robots_label"), t("settings.robots_tip"))
+                yield Checkbox(
+                    t("settings.robots_checkbox"),
+                    value=bool(self._settings.get("respect_robots", True)),
+                    id="set-robots",
+                )
+            with Horizontal(classes="settings-row"):
                 yield from self._label_with_icon(t("settings.concurrency_label"), t("settings.concurrency_tip"))
                 yield Input(
                     value=str(self._settings.get("concurrency", 8)),
                     type="integer",
                     id="set-concurrency",
                 )
+            rate_on = bool(self._settings.get("rate_limit_enabled", True))
+            rate_value = self._clamp(self._settings.get("rate_per_minute", 60), 60, 10, 240)
+            with Horizontal(classes="settings-row"):
+                yield from self._label_with_icon(t("settings.rate_label"), t("settings.rate_tip"))
+                yield Checkbox(
+                    t("settings.rate_checkbox"),
+                    value=rate_on,
+                    id="set-rate-on",
+                )
+            yield Static(
+                self._rate_label(rate_value),
+                id="rate-value",
+                classes="rate-value" if rate_on else "rate-value off",
+            )
+            yield Slider(min=10, max=240, step=10, value=rate_value, id="set-rate", disabled=not rate_on)
             with Horizontal(classes="settings-row"):
                 yield from self._label_with_icon(t("settings.timeout_label"), t("settings.timeout_tip"))
                 yield Input(
@@ -150,9 +184,7 @@ class ScannerSettingsScreen(BaseSettingsScreen):
 
         with TabPane(t("settings.tab_export"), id="settings-tab-export"), VerticalScroll():
             with Horizontal(classes="settings-row"):
-                yield from self._label_with_icon(
-                    t("settings.jira_format_label"), t("settings.jira_format_tip")
-                )
+                yield from self._label_with_icon(t("settings.jira_format_label"), t("settings.jira_format_tip"))
                 yield Select(
                     [
                         (t("settings.jira_format_markdown"), "markdown"),
@@ -163,6 +195,39 @@ class ScannerSettingsScreen(BaseSettingsScreen):
                     id="set-jira-format",
                 )
             yield Static(t("settings.jira_format_hint"), classes="settings-hint")
+
+    @staticmethod
+    def _clamp(value: object, default: int, lo: int, hi: int) -> int:
+        """Begrenzt einen gespeicherten Wert auf den Bereich des Reglers."""
+        try:
+            return max(lo, min(hi, int(str(value))))
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _rate_label(per_minute: int) -> str:
+        """Uebersetzt die Reglerstellung in Klartext (Zahl + Einordnung)."""
+        if per_minute <= 30:
+            step = t("settings.rate_step_gentle")
+        elif per_minute <= 90:
+            step = t("settings.rate_step_careful")
+        elif per_minute <= 150:
+            step = t("settings.rate_step_brisk")
+        else:
+            step = t("settings.rate_step_reckless")
+        return t("settings.rate_value", count=per_minute, step=step)
+
+    @on(Slider.Changed, "#set-rate")
+    def _on_rate_changed(self, event: Slider.Changed) -> None:
+        """Haelt die Beschriftung ueber dem Regler am aktuellen Wert."""
+        self.query_one("#rate-value", Static).update(self._rate_label(int(event.slider.value)))
+
+    @on(Checkbox.Changed, "#set-rate-on")
+    def _on_rate_toggled(self, event: Checkbox.Changed) -> None:
+        """Sperrt den Regler, solange nicht gedrosselt wird."""
+        enabled = bool(event.value)
+        self.query_one("#set-rate", Slider).disabled = not enabled
+        self.query_one("#rate-value", Static).set_class(not enabled, "off")
 
     def _label_with_icon(self, label_text: str, tip: str) -> ComposeResult:
         """Erzeugt Label + (?)-Hover-Tooltip-Icon in der Label-Spalte."""
@@ -176,7 +241,10 @@ class ScannerSettingsScreen(BaseSettingsScreen):
         """Schreibt die Scanner-Optionen aus den Widgets ins Ergebnis-Dict."""
         settings["accept_consent"] = self.query_one("#set-consent", Checkbox).value
         settings["trigger_lazy_load"] = self.query_one("#set-scroll", Checkbox).value
+        settings["respect_robots"] = self.query_one("#set-robots", Checkbox).value
         settings["concurrency"] = self._int("#set-concurrency", 8)
+        settings["rate_limit_enabled"] = self.query_one("#set-rate-on", Checkbox).value
+        settings["rate_per_minute"] = int(self.query_one("#set-rate", Slider).value)
         settings["timeout"] = self._int("#set-timeout", 60, minimum=5)
         settings["size_warn_mb"] = self._int("#set-size-warn", 10, minimum=0)
         settings["score_error_weight"] = min(100, self._int("#set-score-weight", 60, minimum=0))
