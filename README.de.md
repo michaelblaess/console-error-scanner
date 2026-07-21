@@ -246,6 +246,49 @@ Falls Chrome nicht installiert ist, wird das **gebundelte Chromium** als Fallbac
 | System-Chrome (bevorzugt) | 0 MB extra | Chrome installiert |
 | Gebundeltes Chromium (Fallback) | +150 MB | Keine |
 
+## Last auf dem Zielsystem - bitte lesen
+
+Jede Seite wird in einem **echten Browser** geprüft: Skripte, Schriften und Bilder werden geladen,
+und der Aufruf läuft an den Zwischenspeichern des Servers vorbei. Eine Seite wiegt damit ein
+Vielfaches eines einfachen HTTP-Abrufs. Bei einer großen Sitemap kommen so schnell mehrere hundert
+schwere Aufrufe pro Minute zusammen - genug, um ein Produktivsystem spürbar zu verlangsamen.
+
+Der Scanner ist deshalb **von Haus aus gedrosselt**: 60 Seiten pro Minute. Ändern kannst Du das
+unter *Einstellungen -> Scanner*, dort lässt es sich für eigene Testsysteme auch abschalten.
+
+`--concurrency` ist **kein** Rate-Limit: Die Einstellung begrenzt, wie viele Browser-Tabs
+gleichzeitig laufen, nicht wie viele Seiten pro Minute abgerufen werden. Und gezählt werden die
+Seitenaufrufe - was der Browser pro Seite nachlädt, zählt nicht extra, die tatsächliche Last liegt
+also höher als die Zahl vermuten lässt.
+
+`robots.txt` wird für die Seiten aus der Sitemap standardmäßig beachtet; gesperrte Seiten werden
+übersprungen und im Log ausgewiesen.
+
+## Nutzung auf eigene Verantwortung
+
+Dieses Programm ruft Webseiten automatisiert ab und erzeugt dabei Last auf den Zielsystemen. Je
+nach Einstellung kann diese Last die eines normalen Besuchers um ein Vielfaches übersteigen und
+die Erreichbarkeit des Zielsystems beeinträchtigen.
+
+Mit der Nutzung erklären Sie:
+
+1. Sie setzen das Programm ausschließlich gegen Systeme ein, für die Ihnen eine ausdrückliche
+   Berechtigung des Betreibers vorliegt.
+2. Sie tragen die alleinige Verantwortung für den Einsatz, die gewählten Einstellungen und alle
+   daraus entstehenden Folgen.
+3. Vor einem Lauf gegen ein Produktivsystem prüfen Sie, ob die eingestellten Grenzwerte für
+   dieses System angemessen sind.
+
+Die Software wird unentgeltlich und ohne jede Gewährleistung bereitgestellt ("as is"), wie in
+Abschnitt 7 der Apache-Lizenz 2.0 beschrieben. Eine Haftung des Autors (Michael Blaess) für
+Schäden, die aus der Nutzung entstehen, ist ausgeschlossen, soweit dies gesetzlich zulässig ist.
+Unberührt bleibt die Haftung für Vorsatz und grobe Fahrlässigkeit, für Schäden aus der Verletzung
+des Lebens, des Körpers oder der Gesundheit sowie nach dem Produkthaftungsgesetz.
+
+Beim ersten Start fragt das Programm diesen Hinweis ab. Die Sprache richtet sich nach Deiner
+Systemumgebung - Deutsch nur bei nachweislich deutschsprachiger Umgebung, jeder andere Fall (auch
+ein Fehler beim Auslesen) führt zu Englisch.
+
 ## Robustheit
 
 - Retry-Logik: 3 Versuche pro Seite mit exponential Backoff (5s, 10s, 20s)
