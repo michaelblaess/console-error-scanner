@@ -153,6 +153,12 @@ def main() -> None:
         help="Seite nicht scrollen (kein Lazy-Loading-Trigger)",
     )
     parser.add_argument(
+        "--ignore-robots",
+        action="store_true",
+        default=None,
+        help="robots.txt ignorieren (nur fuer eigene Seiten sinnvoll)",
+    )
+    parser.add_argument(
         "--lang",
         default=saved_lang,
         choices=SUPPORTED_LANGUAGES,
@@ -206,6 +212,7 @@ def main() -> None:
             whitelist_path=args.whitelist,
             accept_consent=(not args.no_consent) if args.no_consent is not None else None,
             trigger_lazy_load=(not args.no_scroll) if args.no_scroll is not None else None,
+            respect_robots=(not args.ignore_robots) if args.ignore_robots is not None else None,
         )
         app.run()
     finally:
