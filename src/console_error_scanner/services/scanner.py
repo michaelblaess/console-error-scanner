@@ -13,6 +13,7 @@ from playwright.async_api import Browser, Page, async_playwright
 
 from ..i18n import t
 from ..models.scan_result import ErrorType, PageError, PageStatus, ResourceSize, ScanResult
+from .rate_limit import RateLimiter
 
 
 class Scanner:
@@ -50,6 +51,7 @@ class Scanner:
         accept_consent: bool = True,
         trigger_lazy_load: bool = True,
         proxy: str = "",
+        rate_per_minute: int = 60,
     ) -> None:
         self.concurrency = concurrency
         self.timeout = timeout
@@ -59,6 +61,9 @@ class Scanner:
         self.cookies = cookies or []
         self.accept_consent = accept_consent
         self.trigger_lazy_load = trigger_lazy_load
+        # 0 = kein Limit. Jede Seite laeuft durch einen echten Browser und
+        # erzeugt damit ein Vielfaches der Last eines einfachen Abrufs.
+        self.rate_per_minute = rate_per_minute
         # Optionaler Corporate-Proxy (Zscaler) fuer httpx UND Playwright.
         self.proxy_url = proxy.strip()
         self._captured_types = self.CONSOLE_LEVELS.get(console_level, {"error", "warning"})
@@ -88,6 +93,9 @@ class Scanner:
         self._install_loop_noise_filter()
         total = len(results)
         semaphore = asyncio.Semaphore(self.concurrency)
+        # Gewartet wird INNERHALB der Semaphore: so warten hoechstens
+        # `concurrency` Aufgaben am Limiter, der Rest haengt am Semaphore.
+        limiter = RateLimiter(self.rate_per_minute)
         completed = 0
 
         def log(msg: str) -> None:
@@ -109,6 +117,8 @@ class Scanner:
                 async with semaphore:
                     if self._cancelled:
                         return
+
+                    await limiter.acquire()
 
                     result.status = PageStatus.SCANNING
                     if on_result:
@@ -389,11 +399,7 @@ class Scanner:
                 url = response.url
 
                 resp_domain = urlparse(url).hostname or ""
-                if (
-                    resp_domain == page_domain
-                    and status == 200
-                    and response.request.resource_type != "media"
-                ):
+                if resp_domain == page_domain and status == 200 and response.request.resource_type != "media":
                     size_responses.append(response)
 
                 # Haupt-Seiten-Status merken
@@ -476,9 +482,7 @@ class Scanner:
             # Kurze networkidle-Kulanz (max. 8s), damit nachgelagerte Requests
             # und ihre Fehler noch erfasst werden - aber ohne harten Block.
             with contextlib.suppress(Exception):
-                await page.wait_for_load_state(
-                    "networkidle", timeout=min(self.timeout, 8) * 1000
-                )
+                await page.wait_for_load_state("networkidle", timeout=min(self.timeout, 8) * 1000)
 
             if response:
                 result.http_status_code = response.status

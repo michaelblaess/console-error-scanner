@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
+import locale
 import logging
+import os
 from importlib import resources
 
 logger = logging.getLogger(__name__)
@@ -13,6 +16,27 @@ _current_lang: str = "de"
 
 SUPPORTED_LANGUAGES = ("de", "en")
 DEFAULT_LANGUAGE = "de"
+
+
+def detect_language() -> str:
+    """Leitet die Startsprache aus der Systemumgebung ab.
+
+    Nur beim allerersten Start relevant - danach steht die Sprache in den
+    Einstellungen. Deutsch wird nur bei einer nachweislich deutschsprachigen
+    Umgebung gewaehlt. Jeder andere Fall - unbekannte Sprache, leere Umgebung
+    oder ein Fehler beim Auslesen (locale.getlocale() wirft auf manchen
+    Systemen) - fuehrt zu Englisch, der Sprache der Projektdokumentation.
+
+    Returns:
+        "de" fuer eine deutschsprachige Umgebung, sonst immer "en".
+    """
+    code = ""
+    with contextlib.suppress(Exception):
+        code = locale.getlocale()[0] or ""
+    if not code:
+        with contextlib.suppress(Exception):
+            code = os.environ.get("LC_ALL") or os.environ.get("LANG") or ""
+    return "de" if code.lower().startswith("de") else "en"
 
 
 def load_locale(lang: str) -> None:

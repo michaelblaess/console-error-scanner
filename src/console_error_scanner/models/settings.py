@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+from ..i18n import detect_language
 
 logger = logging.getLogger(__name__)
 
@@ -87,10 +89,16 @@ class Settings:
     """
 
     theme: str = "textual-dark"
-    language: str = "de"
+    # Erststart: Sprache aus der Systemumgebung, danach aus der Datei.
+    language: str = field(default_factory=lambda: detect_language())
     accept_consent: bool = True
     trigger_lazy_load: bool = True
+    respect_robots: bool = True
     concurrency: int = 8
+    # Aufrufe pro Minute; 0 = ungebremst. Voreingestellt gedrosselt, weil
+    # jede Seite durch einen echten Browser laeuft und entsprechend wiegt.
+    rate_limit_enabled: bool = True
+    rate_per_minute: int = 60
     timeout: int = 60
     console_level: str = "warn"
     user_agent: str = ""
@@ -114,7 +122,10 @@ class Settings:
             "language": self.language,
             "accept_consent": self.accept_consent,
             "trigger_lazy_load": self.trigger_lazy_load,
+            "respect_robots": self.respect_robots,
             "concurrency": self.concurrency,
+            "rate_limit_enabled": self.rate_limit_enabled,
+            "rate_per_minute": self.rate_per_minute,
             "timeout": self.timeout,
             "console_level": self.console_level,
             "user_agent": self.user_agent,
@@ -146,10 +157,13 @@ class Settings:
                 return Settings()
             settings = Settings(
                 theme=data.get("theme", "textual-dark"),
-                language=data.get("language", "de"),
+                language=data.get("language", detect_language()),
                 accept_consent=data.get("accept_consent", True),
                 trigger_lazy_load=data.get("trigger_lazy_load", True),
+                respect_robots=data.get("respect_robots", True),
                 concurrency=int(data.get("concurrency", 8)),
+                rate_limit_enabled=bool(data.get("rate_limit_enabled", True)),
+                rate_per_minute=int(data.get("rate_per_minute", 60)),
                 timeout=int(data.get("timeout", 60)),
                 console_level=str(data.get("console_level", "warn")),
                 user_agent=str(data.get("user_agent", "")),
@@ -160,9 +174,7 @@ class Settings:
                 size_warn_mb=int(data.get("size_warn_mb", 10)),
                 score_error_weight=int(data.get("score_error_weight", 60)),
                 proxy_url=str(data.get("proxy_url", "")),
-                jira_format=(
-                    "wiki" if str(data.get("jira_format", "markdown")).lower() == "wiki" else "markdown"
-                ),
+                jira_format=("wiki" if str(data.get("jira_format", "markdown")).lower() == "wiki" else "markdown"),
             )
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)

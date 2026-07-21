@@ -22,10 +22,13 @@ from textual.widget import Widget
 from textual.widgets import Button, Footer, Header
 from textual_themes import THEME_DISPLAY_NAMES, register_all
 from textual_widgets import (
+    DISCLAIMER_VERSION,
     ClickableLinksMixin,
     ContextMenuItem,
     ContextMenuScreen,
     CrashGuard,
+    DisclaimerScreen,
+    DisclaimerStore,
     HorizontalSplitter,
     LogPanel,
     LogRouter,
@@ -33,11 +36,12 @@ from textual_widgets import (
     VerticalSplitter,
 )
 
-from . import __version__
+from . import __author__, __version__, __year__
 from .i18n import current_language, t
 from .models.history import History, HistoryEntry
+from .models.robots import RobotsChecker
 from .models.scan_result import PageStatus, ScanResult, ScanSummary
-from .models.settings import Settings, parse_cookies
+from .models.settings import SETTINGS_FILE, Settings, parse_cookies
 from .models.sitemap import SitemapError, SitemapParser, discover_sitemap, is_local_file, is_sitemap_url
 from .models.whitelist import Whitelist
 from .services.reporter import Reporter
@@ -111,6 +115,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         whitelist_path: str = "",
         accept_consent: bool | None = None,
         trigger_lazy_load: bool | None = None,
+        respect_robots: bool | None = None,
     ) -> None:
         super().__init__()
 
@@ -122,6 +127,9 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
 
         # Persistierte Einstellungen laden
         self._settings = Settings.load()
+
+        # Zustimmung zum Haftungshinweis liegt neben den Einstellungen.
+        self._disclaimer = DisclaimerStore(SETTINGS_FILE.parent / "disclaimer.json")
 
         # CLI ueberschreibt Settings; sonst Settings-Default.
         self.sitemap_url = sitemap_url
@@ -142,6 +150,9 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         self.trigger_lazy_load = (
             trigger_lazy_load if trigger_lazy_load is not None else self._settings.trigger_lazy_load
         )
+        self.respect_robots = respect_robots if respect_robots is not None else self._settings.respect_robots
+        # Drosselung: abgeschaltet entspricht 0 Aufrufen/Minute, also kein Limit.
+        self.rate_per_minute = self._settings.rate_per_minute if self._settings.rate_limit_enabled else 0
         self.show_preview: bool = self._settings.show_preview
         # Schwellwert (MB) fuer die Gross-Seiten-Hervorhebung in der Tabelle.
         self.size_warn_mb: int = self._settings.size_warn_mb
@@ -217,6 +228,27 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
 
         yield Footer()
 
+    def _ask_disclaimer(self) -> None:
+        """Holt den Haftungshinweis ein, solange er nicht (in dieser Fassung) bestaetigt ist."""
+        if self._disclaimer.accepted_version == DISCLAIMER_VERSION:
+            return
+        self.push_screen(
+            DisclaimerScreen(
+                app_name=f"console-error-scanner {__version__}",
+                lang=current_language(),
+                author=__author__,
+                footer=f"© {__year__} {__author__} · github.com/michaelblaess/console-error-scanner",
+            ),
+            callback=self._on_disclaimer,
+        )
+
+    def _on_disclaimer(self, accepted: bool | None) -> None:
+        """Ohne Zustimmung wird das Programm beendet - der Hinweis ist nicht optional."""
+        if not accepted:
+            self.exit()
+            return
+        self._disclaimer.record()
+
     def on_mount(self) -> None:
         """Initialisierung nach dem Starten."""
         # Preview-Panel nur einblenden, wenn die Vorschau aktiviert ist -
@@ -229,6 +261,16 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         self._write_log(f"[bold]{t('log.version', version=__version__)}[/bold]")
         consent_info = t("log.consent_on") if self.accept_consent else t("log.consent_off")
         scroll_info = t("log.scroll_on") if self.trigger_lazy_load else t("log.scroll_off")
+        if not self.respect_robots:
+            self._write_log(t("log.robots_ignored"))
+        # Last-Hinweis frueh ins Protokoll: ohne Limit haengt die Rate allein
+        # davon ab, wie schnell das Ziel antwortet.
+        if self.rate_per_minute > 0:
+            self._write_log(t("log.rate_on", count=self.rate_per_minute))
+        else:
+            self._write_log(t("log.rate_off", count=self.concurrency))
+
+        self._ask_disclaimer()
         self._write_log(
             t(
                 "log.config",
@@ -385,6 +427,25 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
 
         self._write_log(f"[green]{t('log.urls_loaded', count=len(self._urls))}[/green]")
 
+        # robots.txt gilt fuer die SEITEN. Die von ihnen geladenen Ressourcen werden
+        # bewusst nicht geprueft: sie liegen oft auf einer CDN-Domain mit eigener
+        # robots.txt, und wer die Seite ausliefern darf, liefert sie ohnehin mit aus.
+        if self.respect_robots and self._urls:
+            robots = RobotsChecker()
+            await robots.load(self._urls[0], cookies=self.cookies, proxy=self.proxy_url)
+            allowed = [url for url in self._urls if robots.is_allowed(url)]
+            blocked = len(self._urls) - len(allowed)
+            if blocked:
+                self._write_log(f"[yellow]{t('log.robots_blocked', blocked=blocked, total=len(self._urls))}[/yellow]")
+                self._urls = allowed
+            else:
+                self._write_log(t("log.robots_clear"))
+
+        if not self._urls:
+            self._write_log(f"[yellow]{t('log.no_urls_in_sitemap')}[/yellow]")
+            self.notify(t("notify.no_urls"), severity="warning")
+            return
+
         self._results = [ScanResult(url=url) for url in self._urls]
 
         summary = self.query_one("#summary", SummaryHeader)
@@ -534,6 +595,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             accept_consent=self.accept_consent,
             trigger_lazy_load=self.trigger_lazy_load,
             proxy=self.proxy_url,
+            rate_per_minute=self.rate_per_minute,
         )
 
         def on_result(result: ScanResult) -> None:
@@ -800,9 +862,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         first = (message or "").split("\n", 1)[0].strip()
         return first if len(first) <= 50 else first[:49] + "…"
 
-    def on_stats_panel_whitelist_menu_requested(
-        self, event: StatsPanel.WhitelistMenuRequested
-    ) -> None:
+    def on_stats_panel_whitelist_menu_requested(self, event: StatsPanel.WhitelistMenuRequested) -> None:
         """Rechtsklick im Detail-Panel: Menue zum Whitelisten / Entfernen.
 
         Eintraege werden nach PATTERN dedupliziert: mehrere Fehler, die dasselbe
@@ -1352,6 +1412,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         self.accept_consent = self._settings.accept_consent
         self.trigger_lazy_load = self._settings.trigger_lazy_load
         self.concurrency = self._settings.concurrency
+        self.rate_per_minute = self._settings.rate_per_minute if self._settings.rate_limit_enabled else 0
         self.timeout = self._settings.timeout
         self.console_level = self._settings.console_level
         self.show_preview = self._settings.show_preview
