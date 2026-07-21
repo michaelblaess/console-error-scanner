@@ -145,6 +145,19 @@
       .gallery { padding: 0 16px 48px; }
       .gallery-tabs { overflow-x: auto; }
     }
+
+    /* ── Page-specific: Last-Hinweis und Verantwortung ── */
+    .load-warning {
+      max-width: calc(var(--max-width) - 64px); margin: 0 auto 40px; padding: 20px 24px;
+      border: 1px solid var(--accent); border-radius: var(--radius-lg);
+      background: var(--bg-secondary); color: var(--text-secondary);
+    }
+    .load-warning strong { color: var(--text-primary); }
+    @media (max-width: 640px) { .load-warning { max-width: calc(100% - 32px); } }
+    .liability { max-width: var(--max-width); margin: 0 auto; color: var(--text-secondary); }
+    .liability ol { margin: 16px 0 16px 24px; }
+    .liability li { margin-bottom: 8px; }
+    .liability .fineprint { color: var(--text-tertiary); font-size: 14px; margin-top: 20px; }
   </style>
 </head>
 <body>
@@ -159,6 +172,7 @@
     <div class="header-right">
       <a href="#features" class="header-link">Features</a>
       <a href="#cli" class="header-link">CLI</a>
+      <a href="#verantwortung" class="header-link">Verantwortung</a>
       <a href="#install" class="header-link">Installation</a>
       <a href="https://github.com/michaelblaess/console-error-scanner" class="header-link">GitHub</a>
       <button class="theme-toggle" onclick="toggleTheme()" aria-label="Theme wechseln">
@@ -170,7 +184,7 @@
 
   <!-- ═══ HERO ═══ -->
   <section class="hero">
-    <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v1.12.0</div>
+    <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v1.13.0</div>
     <h1>Console <span class="accent">Error</span><br>Scanner</h1>
     <p class="hero-description">Scannt Websites automatisch auf JavaScript Console-Errors, HTTP-Fehler und CSP-Violations — mit Live-Ergebnissen, Top-10-Analyse und Scan-History direkt im Terminal.</p>
     <div class="hero-actions">
@@ -183,6 +197,14 @@
   </section>
 
   <!-- ═══ SCREENSHOT GALLERY ═══ -->
+  <div class="load-warning">
+    <strong>Ein Scan erzeugt Last.</strong> Jede Seite wird in einem echten Browser geprüft und läuft
+    damit an den Zwischenspeichern des Servers vorbei - eine Seite wiegt ein Vielfaches eines
+    einfachen Abrufs. Der Scanner ist deshalb <strong>von Haus aus auf 60 Seiten pro Minute
+    gedrosselt</strong>. Setze ihn nur gegen Systeme ein, für die Du eine Berechtigung hast &mdash;
+    <a href="#verantwortung" style="color:var(--accent)">Einzelheiten unter Verantwortung</a>.
+  </div>
+
   <section class="gallery">
     <div class="gallery-tabs">
       <button class="gallery-tab active" onclick="showSlide(0)">Hauptansicht</button>
@@ -398,6 +420,50 @@
   <div class="divider"><div class="divider-line"></div></div>
 
   <!-- ═══ INSTALLATION ═══ -->
+  <section class="section" id="verantwortung">
+    <div class="section-label">Verantwortung</div>
+    <h2 class="section-title">Nutzung auf eigene Verantwortung</h2>
+    <p class="section-description">Was ein Scan auf dem Zielsystem anrichtet - und wer dafür geradesteht.</p>
+    <div class="liability">
+      <p>
+        Jede Seite wird in einem <strong>echten Browser</strong> geprüft: Skripte, Schriften und Bilder
+        werden geladen, der Aufruf läuft an den Zwischenspeichern des Servers vorbei. Eine Seite wiegt
+        damit ein Vielfaches eines einfachen HTTP-Abrufs. Bei einer großen Sitemap kommen so schnell
+        mehrere hundert schwere Aufrufe pro Minute zusammen - genug, um ein Produktivsystem spürbar zu
+        verlangsamen.
+      </p>
+      <p style="margin-top:16px">
+        Deshalb ist der Scanner <strong>voreingestellt gedrosselt</strong>: 60 Seiten pro Minute.
+        <code>--concurrency</code> ist dabei kein Rate-Limit, sondern begrenzt nur, wie viele
+        Browser-Tabs gleichzeitig laufen. Und gezählt werden die Seitenaufrufe - was der Browser pro
+        Seite nachlädt, zählt nicht extra.
+      </p>
+      <p style="margin-top:16px">Mit der Nutzung erklären Sie:</p>
+      <ol>
+        <li>Sie setzen das Programm ausschließlich gegen Systeme ein, für die Ihnen eine ausdrückliche
+        Berechtigung des Betreibers vorliegt.</li>
+        <li>Sie tragen die alleinige Verantwortung für den Einsatz, die gewählten Einstellungen und alle
+        daraus entstehenden Folgen.</li>
+        <li>Vor einem Lauf gegen ein Produktivsystem prüfen Sie, ob die eingestellten Grenzwerte für
+        dieses System angemessen sind.</li>
+      </ol>
+      <p class="fineprint">
+        Die Software wird unentgeltlich und ohne jede Gewährleistung bereitgestellt ("as is"), wie in
+        Abschnitt 7 der Apache-Lizenz 2.0 beschrieben. Eine Haftung des Autors (Michael Blaess) für
+        Schäden, die aus der Nutzung entstehen, ist ausgeschlossen, soweit dies gesetzlich zulässig
+        ist. Unberührt bleibt die Haftung für Vorsatz und grobe Fahrlässigkeit, für Schäden aus der
+        Verletzung des Lebens, des Körpers oder der Gesundheit sowie nach dem Produkthaftungsgesetz.
+      </p>
+      <p class="fineprint">
+        Beim ersten Start fragt das Programm diesen Hinweis ab; ohne Zustimmung startet es nicht. Die
+        Sprache richtet sich nach Deiner Systemumgebung - Deutsch nur bei deutschsprachiger Umgebung,
+        sonst Englisch.
+      </p>
+    </div>
+  </section>
+
+  <div class="divider"><div class="divider-line"></div></div>
+
   <section class="section" id="install">
     <div class="section-label">Installation</div>
     <h2 class="section-title">Schnellstart</h2>

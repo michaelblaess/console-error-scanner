@@ -246,6 +246,49 @@ If Chrome is not installed, the **bundled Chromium** is used as a fallback.
 | System Chrome (preferred) | 0 MB extra | Chrome installed |
 | Bundled Chromium (fallback) | +150 MB | None |
 
+## Load on the target system - please read this
+
+Every page is checked in a **real browser**: scripts, fonts and images are loaded, and the request
+bypasses the server's caches. One page therefore weighs several times an ordinary HTTP request. On
+a large sitemap this quickly adds up to hundreds of heavy requests per minute and can noticeably
+degrade a production system.
+
+The scanner is therefore **rate-limited out of the box**: 60 pages per minute. Change it under
+*Settings -> Scanner*, or switch it off there if you are scanning your own test system.
+
+Note that `--concurrency` is **not** a rate limit: it caps how many browser tabs run at the same
+time, not how many pages go out per minute. And the limit counts page requests - whatever the
+browser pulls in per page is not counted separately, so the real load is higher than the number
+suggests.
+
+`robots.txt` is honoured by default for the pages from the sitemap; blocked pages are skipped and
+reported in the log.
+
+## Use at your own risk
+
+This program retrieves web pages automatically and thereby places load on the target systems.
+Depending on its settings, that load can exceed the load of an ordinary visitor many times over
+and can impair the availability of the target system.
+
+By using it, you declare that:
+
+1. You will use this program only against systems for which you hold explicit authorisation from
+   their operator.
+2. You bear sole responsibility for its use, for the settings you choose and for all
+   consequences arising from them.
+3. Before running it against a production system, you will verify that the configured limits are
+   appropriate for that system.
+
+The software is provided free of charge and without warranty of any kind ("as is"), as set out in
+section 7 of the Apache License 2.0. The liability of the author (Michael Blaess) for damages
+arising from its use is excluded to the extent permitted by applicable law. Liability for intent
+and gross negligence, for injury to life, body or health, and under mandatory product liability
+law remains unaffected.
+
+On first start the program asks you to confirm this notice. The language follows your system
+environment - German only for a demonstrably German-speaking environment, everything else
+(including any error while reading it) falls back to English.
+
 ## Robustness
 
 - Retry logic: 3 attempts per page with exponential backoff (5s, 10s, 20s)
