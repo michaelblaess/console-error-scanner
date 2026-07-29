@@ -12,6 +12,12 @@
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
+# Corporate-Proxy (Zscaler/EON): uv nutzt den Windows-Zertifikatspeicher, sonst
+# scheitert es an 'invalid peer certificate: UnknownIssuer'. SSL_CERT_FILE muss
+# geleert werden, sonst zwingt uv ein von rustls abgelehntes Bundle auf.
+$env:UV_SYSTEM_CERTS = "1"
+$env:SSL_CERT_FILE = $null
+
 Write-Host "=== console-error-scanner - dev environment ===" -ForegroundColor Cyan
 
 Write-Host "[1/3] venv + dependencies (uv sync)..."
