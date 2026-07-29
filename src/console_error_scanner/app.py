@@ -1347,15 +1347,21 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             "language": self._settings.language,
             "accept_consent": self._settings.accept_consent,
             "trigger_lazy_load": self._settings.trigger_lazy_load,
+            "respect_robots": self._settings.respect_robots,
             "concurrency": self._settings.concurrency,
+            "rate_limit_enabled": self._settings.rate_limit_enabled,
+            "rate_per_minute": self._settings.rate_per_minute,
             "timeout": self._settings.timeout,
             "console_level": self._settings.console_level,
             "show_preview": self._settings.show_preview,
             "no_headless": self._settings.no_headless,
+            "size_warn_mb": self._settings.size_warn_mb,
+            "score_error_weight": self._settings.score_error_weight,
             "user_agent": self._settings.user_agent,
             "cookies": self._settings.cookies,
             "whitelist_path": self._settings.whitelist_path,
             "proxy_url": self._settings.proxy_url,
+            "jira_format": self._settings.jira_format,
         }
         self.push_screen(
             ScannerSettingsScreen(current, lang=current_language()),
@@ -1377,7 +1383,9 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             "language": self._settings.language,
             "accept_consent": self._settings.accept_consent,
             "trigger_lazy_load": self._settings.trigger_lazy_load,
+            "respect_robots": self._settings.respect_robots,
             "concurrency": self._settings.concurrency,
+            "rate_limit_enabled": self._settings.rate_limit_enabled,
             "timeout": self._settings.timeout,
             "console_level": self._settings.console_level,
             "show_preview": self._settings.show_preview,
@@ -1393,7 +1401,10 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         self._settings.language = str(result.get("language", self._settings.language))
         self._settings.accept_consent = bool(result.get("accept_consent", self._settings.accept_consent))
         self._settings.trigger_lazy_load = bool(result.get("trigger_lazy_load", self._settings.trigger_lazy_load))
+        self._settings.respect_robots = bool(result.get("respect_robots", self._settings.respect_robots))
         self._settings.concurrency = int(result.get("concurrency", self._settings.concurrency))  # type: ignore[arg-type]
+        self._settings.rate_limit_enabled = bool(result.get("rate_limit_enabled", self._settings.rate_limit_enabled))
+        self._settings.rate_per_minute = int(result.get("rate_per_minute", self._settings.rate_per_minute))  # type: ignore[arg-type]
         self._settings.timeout = int(result.get("timeout", self._settings.timeout))  # type: ignore[arg-type]
         self._settings.console_level = str(result.get("console_level", self._settings.console_level))
         self._settings.show_preview = bool(result.get("show_preview", self._settings.show_preview))
@@ -1406,11 +1417,13 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             str(result.get("score_error_weight", self._settings.score_error_weight))
         )
         self._settings.proxy_url = str(result.get("proxy_url", self._settings.proxy_url))
+        self._settings.jira_format = str(result.get("jira_format", self._settings.jira_format))
         self._settings.save()
 
         # Runtime-Werte fuer den naechsten Scan aktualisieren
         self.accept_consent = self._settings.accept_consent
         self.trigger_lazy_load = self._settings.trigger_lazy_load
+        self.respect_robots = self._settings.respect_robots
         self.concurrency = self._settings.concurrency
         self.rate_per_minute = self._settings.rate_per_minute if self._settings.rate_limit_enabled else 0
         self.timeout = self._settings.timeout
@@ -1437,7 +1450,9 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             ("language", t("binding.settings") + " (Lang)"),
             ("accept_consent", t("settings.consent_label")),
             ("trigger_lazy_load", t("settings.scroll_label")),
+            ("respect_robots", t("settings.robots_label")),
             ("concurrency", t("settings.concurrency_label")),
+            ("rate_limit_enabled", t("settings.rate_label")),
             ("timeout", t("settings.timeout_label")),
             ("console_level", t("settings.console_level_label")),
             ("show_preview", t("settings.preview_label")),
