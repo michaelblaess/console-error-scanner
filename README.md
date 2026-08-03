@@ -300,6 +300,37 @@ environment - German only for a demonstrably German-speaking environment, everyt
 
 ---
 
+## When something goes wrong
+
+If the program crashes, the report is written to disk instead of only to the
+terminal - two files next to the settings, both linked from the storage tab in
+the settings once they exist:
+
+| File | What for |
+| --- | --- |
+| `last-crash.txt` | Python errors including the traceback. Written **before** the error dialog runs - if that dialog dies during its own re-layout, the report would otherwise be lost. |
+| `fault.log` | Everything below that: native access violations, stack overflow, fatal interpreter errors. Such crashes bypass Python's error handling entirely. |
+
+Both files are **appended to**, not replaced - a second crash does not hide the
+first one.
+
+`fault.log` also gets a start and an end line per run, which makes the file
+readable at a glance:
+
+| What the file contains | What it means |
+| --- | --- |
+| start, traceback, end | Python error, the program saw it |
+| start, end | exited cleanly |
+| start, then nothing | process was killed - **not** a Python error |
+
+A killed process and a crash look identical in the terminal. Only the missing
+end line tells them apart.
+
+On Windows, prefer starting the program via `run.ps1`: the script restores the
+terminal even when the program crashes hard and can no longer do so itself.
+Otherwise mouse tracking stays on and every mouse move spills control
+characters into your prompt.
+
 ## Developers
 
 ### Setup
