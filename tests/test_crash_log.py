@@ -61,3 +61,23 @@ def test_fault_log_start_line() -> None:
     assert erste_zeile.startswith("===== Start ")
     assert __version__ in erste_zeile
     assert faulthandler.is_enabled()
+
+
+def test_end_line_closes_the_session() -> None:
+    """Das Gegenstueck zur Startzeile - ohne sie ist die Datei nicht deutbar.
+
+    Steht nur eine Startzeile da, wurde der Prozess hart abgeraeumt; mit
+    Endzeile ist er sauber gelaufen. Genau diese Unterscheidung ist der Zweck.
+    """
+    from console_error_scanner.__main__ import _enable_faulthandler, _write_fault_end
+
+    _enable_faulthandler()
+    _write_fault_end()  # ruft sonst atexit auf
+    zeilen = (
+        (Path(settings_module.SETTINGS_FILE).parent / "fault.log")
+        .read_text(encoding="utf-8")
+        .strip()
+        .split("\n")
+    )
+    assert any(z.startswith("===== Start ") for z in zeilen)
+    assert any(z.startswith("===== Ende ") for z in zeilen)

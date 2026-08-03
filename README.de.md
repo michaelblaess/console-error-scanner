@@ -300,6 +300,37 @@ ein Fehler beim Auslesen) führt zu Englisch.
 
 ---
 
+## Wenn etwas schiefgeht
+
+Stuerzt das Programm ab, landet der Bericht auf Platte statt nur im Terminal -
+zwei Dateien neben den Einstellungen, beide im Speicherort-Tab der
+Einstellungen verlinkt, sobald es sie gibt:
+
+| Datei | Wofuer |
+| --- | --- |
+| `last-crash.txt` | Python-Fehler samt Traceback. Wird geschrieben, **bevor** der Fehlerdialog laeuft - faellt dieser beim Neuaufbau selbst mit, waere der Bericht sonst verloren. |
+| `fault.log` | Alles darunter: native Speicherzugriffsfehler, Stack-Overflow, fataler Interpreter-Fehler. Solche Abstuerze laufen an Pythons Fehlerbehandlung vorbei. |
+
+Beide Dateien werden **angehaengt**, nicht ersetzt - ein zweiter Absturz
+verdeckt den ersten nicht.
+
+`fault.log` bekommt ausserdem je Programmlauf eine Start- und eine Endzeile.
+Damit ist ablesbar, was passiert ist:
+
+| Was in der Datei steht | Was es bedeutet |
+| --- | --- |
+| Start, Traceback, Ende | Python-Fehler, das Programm hat ihn gesehen |
+| Start, Ende | sauber beendet |
+| Start, dann nichts | Prozess hart abgeraeumt - **kein** Python-Fehler |
+
+Ein hart abgeraeumter Prozess und ein Absturz sehen im Terminal gleich aus.
+Erst die fehlende Endzeile trennt beide Faelle.
+
+Unter Windows startest Du das Programm am besten ueber `run.ps1`: das Skript
+setzt das Terminal auch dann wieder zurueck, wenn das Programm hart abstuerzt
+und selbst nichts mehr tun kann. Sonst bleibt die Maus-Erfassung aktiv, und
+jede Mausbewegung kippt Steuerzeichen in die Eingabezeile.
+
 ## Entwickler
 
 ### Setup
