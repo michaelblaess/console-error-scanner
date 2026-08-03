@@ -54,6 +54,10 @@ _LEGACY_THEME_MAP: dict[str, str] = {
 SETTINGS_DIR = Path.home() / ".console-error-scanner"
 SETTINGS_FILE = SETTINGS_DIR / "settings.json"
 
+# Absturzberichte landen neben den Einstellungen. Angehaengt, nicht ersetzt -
+# so bleibt auch ein frueherer Absturz nachvollziehbar.
+CRASH_LOG_NAME = "last-crash.txt"
+
 
 @dataclass
 class Settings:

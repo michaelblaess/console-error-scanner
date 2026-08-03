@@ -18,7 +18,7 @@ from textual_widgets import BaseSettingsScreen
 
 from ..i18n import t
 from ..models.history import History
-from ..models.settings import SETTINGS_FILE
+from ..models.settings import CRASH_LOG_NAME, SETTINGS_FILE
 
 
 class ScannerSettingsScreen(BaseSettingsScreen):
@@ -273,6 +273,15 @@ class ScannerSettingsScreen(BaseSettingsScreen):
         if whitelist_raw:
             paths.append((t("settings.storage.whitelist"), Path(whitelist_raw)))
         paths.append((t("settings.storage.preview_cache"), PREVIEW_CACHE_DIR))
+        # Nur auffuehren, wenn es sie gibt - sonst schickt der Tab den Anwender
+        # zu einer Datei, die nie angelegt wurde.
+        for key, name in (
+            ("settings.storage.crash", CRASH_LOG_NAME),
+            ("settings.storage.fault", "fault.log"),
+        ):
+            datei = SETTINGS_FILE.parent / name
+            if datei.is_file():
+                paths.append((t(key), datei))
         return paths
 
     def _int(self, selector: str, default: int, minimum: int = 1) -> int:

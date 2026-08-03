@@ -176,6 +176,7 @@ Die Bindings sind über alle TUIs von Michael einheitlich (`c` = Crawl, `s` = Se
 | Taste | Aktion |
 |-------|--------|
 | `c` | Scan starten (fragt URL ab, wenn keine geladen ist) |
+| `x` | Laufenden Scan abbrechen - die bereits geprüften Seiten bleiben in der Tabelle stehen (steht nur während eines Laufs im Fuß) |
 | `m` | Lokale Sitemap-Datei via Datei-Dialog laden |
 | `s` | Einstellungs-Dialog |
 | `h` | Scan-History |

@@ -344,6 +344,8 @@
   "settings.storage.config": "Settings (settings.json)",
   "settings.storage.history": "Scan history",
   "settings.storage.whitelist": "Whitelist (whitelist.json)",
+  "settings.storage.fault": "Hard crashes (fault.log)",
+  "settings.storage.crash": "Crash reports",
   "settings.storage.preview_cache": "Preview cache",
 
   "preview.select": "Pick a URL from the list to see a preview here.",
@@ -400,5 +402,14 @@
   "cli.banner_2": "Scans websites for console errors and HTTP errors (404, 5xx)",
   "cli.examples": "Examples:",
   "cli.keybindings": "Keybindings in the TUI:",
-  "cli.invalid_cookie": "Invalid: --cookie {cookie} (format: NAME=VALUE)"
+  "cli.invalid_cookie": "Invalid: --cookie {cookie} (format: NAME=VALUE)",
+  "binding.cancel_scan": "Cancel scan",
+  "tooltip.cancel_scan": "Stops the running scan - the pages already checked stay in the table",
+  "notify.scan_cancelling": "Cancelling the scan ...",
+  "notify.scan_cancelled": "Cancelled - {count} checked pages stay visible.",
+  "notify.no_scan_active": "No scan is running.",
+  "log.cancel_requested": "Cancellation requested - pages already under way still finish ...",
+  "log.scan_cancelled": "Scan cancelled - {count} pages checked, results stay in the table.",
+  "subtitle.cancelling": "Cancelling ...",
+  "subtitle.cancelled": "Scan cancelled"
 }
