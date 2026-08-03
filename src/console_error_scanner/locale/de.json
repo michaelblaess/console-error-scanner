@@ -344,6 +344,8 @@
   "settings.storage.config": "Einstellungen (settings.json)",
   "settings.storage.history": "Scan-History",
   "settings.storage.whitelist": "Whitelist (whitelist.json)",
+  "settings.storage.fault": "Harte Abstürze (fault.log)",
+  "settings.storage.crash": "Absturzberichte",
   "settings.storage.preview_cache": "Vorschau-Cache",
 
   "preview.select": "URL aus der Liste wählen, dann erscheint hier eine Vorschau.",
@@ -400,5 +402,14 @@
   "cli.banner_2": "Scannt Websites auf Console-Errors und HTTP-Fehler (404, 5xx)",
   "cli.examples": "Beispiele:",
   "cli.keybindings": "Tastenkürzel in der TUI:",
-  "cli.invalid_cookie": "Ungültig: --cookie {cookie} (Format: NAME=VALUE)"
+  "cli.invalid_cookie": "Ungültig: --cookie {cookie} (Format: NAME=VALUE)",
+  "binding.cancel_scan": "Scan abbrechen",
+  "tooltip.cancel_scan": "Beendet den laufenden Scan - die bereits geprüften Seiten bleiben in der Tabelle stehen",
+  "notify.scan_cancelling": "Scan wird abgebrochen ...",
+  "notify.scan_cancelled": "Abgebrochen - {count} geprüfte Seiten bleiben sichtbar.",
+  "notify.no_scan_active": "Es läuft gerade kein Scan.",
+  "log.cancel_requested": "Abbruch angefordert - laufende Seiten werden noch beendet ...",
+  "log.scan_cancelled": "Scan abgebrochen - {count} Seiten geprüft, Ergebnisse bleiben in der Tabelle.",
+  "subtitle.cancelling": "Abbruch läuft ...",
+  "subtitle.cancelled": "Scan abgebrochen"
 }

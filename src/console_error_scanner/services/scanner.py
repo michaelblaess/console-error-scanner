@@ -9,7 +9,7 @@ from collections.abc import Callable
 from urllib.parse import urlparse
 
 import httpx
-from playwright.async_api import Browser, Page, async_playwright
+from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
 from ..i18n import t
 from ..models.scan_result import ErrorType, PageError, PageStatus, ResourceSize, ScanResult
@@ -70,6 +70,9 @@ class Scanner:
         self._cancelled = False
         self._browser: Browser | None = None
         self._playwright = None
+        # Offene Browser-Kontexte, damit ein Abbruch die laufenden Seiten sofort
+        # kappen kann, statt sie zu Ende laden zu lassen.
+        self._open_contexts: set[BrowserContext] = set()
 
     async def scan_urls(
         self,
@@ -119,6 +122,10 @@ class Scanner:
                         return
 
                     await limiter.acquire()
+                    # Am Limiter kann eine Aufgabe lange gewartet haben - in der
+                    # Zwischenzeit kann der Abbruch gekommen sein.
+                    if self._cancelled:
+                        return
 
                     result.status = PageStatus.SCANNING
                     if on_result:
@@ -175,12 +182,20 @@ class Scanner:
             log: Logging-Callback.
         """
         for attempt in range(self.MAX_RETRIES):
+            # Nach einem Abbruch keinen weiteren Versuch mehr starten - sonst
+            # haengt der Lauf noch im Backoff (5/10/20 s), obwohl der Anwender
+            # laengst abgebrochen hat.
+            if self._cancelled:
+                return
             try:
                 await self._do_scan_page(result, log)
                 return
             except Exception as e:
                 result.retry_count = attempt + 1
                 error_msg = str(e)
+
+                if self._cancelled:  # der Fehler kommt vom Abbruch selbst
+                    return
 
                 if attempt < self.MAX_RETRIES - 1:
                     wait_time = self.BACKOFF_BASE_SECONDS * (2**attempt)
@@ -228,6 +243,17 @@ class Scanner:
             java_script_enabled=True,
             user_agent=self.user_agent,
         )
+        # Merken, damit ein Abbruch die laufende Seite sofort kappen kann.
+        self._open_contexts.add(context)
+        # Der Abbruch kann genau zwischen der letzten Pruefung und dem Anlegen des
+        # Kontexts eingetroffen sein - dann hat ihn das Kappen nicht mehr erwischt,
+        # und die Seite wuerde als einzige komplett zu Ende laufen (belegt: eine
+        # Seite lief 14 s nach dem Abbruch noch durch den Lazy-Load-Scroll).
+        if self._cancelled:
+            self._open_contexts.discard(context)
+            with contextlib.suppress(Exception):
+                await context.close()
+            raise RuntimeError("Scan abgebrochen")
 
         # Custom Cookies setzen (z.B. Auth-Cookies fuer Test-Umgebungen)
         if self.cookies:
@@ -582,7 +608,10 @@ class Scanner:
             # CDP-Session sauber schliessen
             with contextlib.suppress(Exception):
                 await cdp_client.detach()
-            await context.close()
+            self._open_contexts.discard(context)
+            # Beim Abbruch ist der Kontext schon zu - das darf hier nicht knallen.
+            with contextlib.suppress(Exception):
+                await context.close()
 
     async def _accept_consent(
         self,
@@ -893,8 +922,30 @@ class Scanner:
         loop._ces_noise_filter_installed = True  # type: ignore[attr-defined]
 
     def cancel(self) -> None:
-        """Bricht den laufenden Scan ab."""
+        """Bricht den laufenden Scan ab.
+
+        Setzt nicht nur das Kennzeichen, sondern kappt auch die gerade offenen
+        Seiten. Ohne das laeuft jede angefangene Seite zu Ende - Laden, Consent,
+        Lazy-Load-Scroll - und der Lauf endet erst viele Sekunden spaeter, waehrend
+        das Protokoll munter weiterschreibt. Dann wirkt die Taste wie wirkungslos,
+        und man drueckt sie mehrfach.
+        """
         self._cancelled = True
+        with contextlib.suppress(RuntimeError):  # kein laufender Event-Loop
+            asyncio.get_running_loop().create_task(self._close_open_contexts())
+
+    async def _close_open_contexts(self) -> None:
+        """Schliesst alle offenen Browser-Kontexte (best-effort).
+
+        Die laufenden Playwright-Aufrufe brechen dadurch mit "Target closed" ab.
+        Das ist gewollt und wird vom Rauschfilter dieses Moduls abgefangen; die
+        Wiederholungslogik startet wegen des gesetzten Kennzeichens keinen
+        neuen Versuch.
+        """
+        for context in list(self._open_contexts):
+            self._open_contexts.discard(context)
+            with contextlib.suppress(Exception):
+                await context.close()
 
     async def _cleanup(self) -> None:
         """Rauemt Browser und Playwright auf."""
