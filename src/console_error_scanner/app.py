@@ -7,6 +7,7 @@ import contextlib
 import dataclasses
 import re
 import time
+import traceback
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -41,7 +42,7 @@ from .i18n import current_language, t
 from .models.history import History, HistoryEntry
 from .models.robots import RobotsChecker
 from .models.scan_result import PageStatus, ScanResult, ScanSummary
-from .models.settings import SETTINGS_FILE, Settings, parse_cookies
+from .models.settings import CRASH_LOG_NAME, SETTINGS_FILE, Settings, parse_cookies
 from .models.sitemap import SitemapError, SitemapParser, discover_sitemap, is_local_file, is_sitemap_url
 from .models.whitelist import Whitelist
 from .services.reporter import Reporter
@@ -62,6 +63,8 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         Binding("q,Q", "quit", "placeholder", key_display="q"),
         # Konvention ueber alle Michael-TUIs: c = Crawl/Scan starten, s = Settings.
         Binding("c,C", "start_scan", "placeholder", key_display="c"),
+        # Nur waehrend eines Laufs in der Fusszeile - siehe check_action.
+        Binding("x,X", "cancel_scan", "placeholder", key_display="x"),
         Binding("m,M", "load_sitemap_file", "placeholder", key_display="m"),
         Binding("s,S", "show_settings", "placeholder", key_display="s"),
         Binding("h,H", "show_history", "placeholder", key_display="h"),
@@ -84,6 +87,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
     _BINDING_I18N: dict[str, str] = {
         "quit": "quit",
         "start_scan": "crawl",
+        "cancel_scan": "cancel_scan",
         "load_sitemap_file": "load_sitemap",
         "show_settings": "settings",
         "show_history": "history",
@@ -172,6 +176,10 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         self._sitemap_timer: Timer | None = None
         self._sitemap_dots: int = 0
         self._scan_running: bool = False
+        # Merkt den Abbruch ueber das Ende des Laufs hinaus: nach dem Aufraeumen
+        # ist der Scanner weg, die Auswertung muss aber wissen, dass der Lauf
+        # unvollstaendig ist.
+        self._scan_cancelled: bool = False
         self._scan_start_time: float = 0
         self._scan_current: int = 0
         self._scan_total: int = 0
@@ -227,6 +235,29 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
                 yield StatsPanel(id="stats-panel")
 
         yield Footer()
+
+    def _handle_exception(self, error: Exception) -> None:
+        """Schreibt den Traceback auf Platte, bevor der Fehlerdialog laeuft.
+
+        Der CrashGuard zeigt den Traceback nur im Dialog an. Faellt dieser beim
+        Neuaufbau selbst mit (struktureller Defekt), geht der Bericht verloren und
+        der naechste Absturz ist wieder undiagnostizierbar - unter Windows bleibt
+        dann nur Maus-Steuerzeichen-Muell im Terminal zurueck. Die Datei ueberlebt
+        auch den harten Absturzpfad von Textual.
+        """
+        with contextlib.suppress(Exception):
+            self._persist_crash(error)
+        super()._handle_exception(error)
+
+    def _persist_crash(self, error: BaseException) -> None:
+        """Haengt den Traceback mit Zeitstempel an die Absturz-Datei an."""
+        report = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+        path = SETTINGS_FILE.parent / CRASH_LOG_NAME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        header = f"\n===== {stamp} - console-error-scanner v{__version__} =====\n"
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(header + report)
 
     def _ask_disclaimer(self) -> None:
         """Holt den Haftungshinweis ein, solange er nicht (in dieser Fassung) bestaetigt ist."""
@@ -466,6 +497,25 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
 
     # --- Scan ---------------------------------------------------------------
 
+    def action_cancel_scan(self) -> None:
+        """Bricht den laufenden Scan ab; die bisherigen Ergebnisse bleiben stehen.
+
+        Vorher liess sich ein Lauf nur mit 'q' stoppen - und damit war auch die
+        Tabelle weg. Der Abbruch ist kooperativ: angestossene Seiten laufen zu
+        Ende, neue werden nicht mehr begonnen.
+        """
+        if not self._scan_running or self._scanner is None:
+            self.notify(t("notify.no_scan_active"), severity="warning")
+            return
+        if self._scan_cancelled:  # schon angefordert - der Lauf ebbt gerade ab
+            return
+        self._scan_cancelled = True
+        self._scanner.cancel()
+        self._write_log(f"[yellow]{t('log.cancel_requested')}[/yellow]")
+        self.notify(t("notify.scan_cancelling"))
+        self.sub_title = t("subtitle.cancelling")
+        self.refresh_bindings()
+
     def action_start_scan(self) -> None:
         """Startet einen neuen Scan. Ohne Sitemap-URL erst URL abfragen."""
         if self._scan_running:
@@ -533,8 +583,10 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             return
 
         self._scan_running = True
+        self._scan_cancelled = False
         self._scan_ready = False
         self._scan_start_time = time.monotonic()
+        self.refresh_bindings()  # 'x Scan abbrechen' einblenden, 'c' ausblenden
         self._scan_current = 0
         self._scan_total = len(self._results)
         self._scan_progress_timer = self.set_interval(0.5, self._tick_scan_progress)
@@ -624,6 +676,23 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             if self._scan_progress_timer is not None:
                 self._scan_progress_timer.stop()
                 self._scan_progress_timer = None
+            self.refresh_bindings()
+
+        # Abgebrochen: die bereits geprueften Seiten bleiben in der Tabelle, damit
+        # man sie ansehen kann. Keine Zusammenfassung und kein Site-Score - beide
+        # wuerden ein Teilergebnis wie ein vollstaendiges aussehen lassen.
+        if self._scan_cancelled:
+            # Seiten, die beim Abbruch mitten im Laden waren, stehen sonst dauerhaft
+            # auf "wird gescannt" - sie wurden aber nicht geprueft.
+            for result in self._results:
+                if result.status is PageStatus.SCANNING:
+                    result.status = PageStatus.PENDING
+            self.query_one("#results-table", ResultsTable).load_results(self._results)
+            scanned = sum(1 for r in self._results if r.status is not PageStatus.PENDING)
+            self._write_log(f"[yellow]{t('log.scan_cancelled', count=scanned)}[/yellow]")
+            self.notify(t("notify.scan_cancelled", count=scanned), severity="warning")
+            self.sub_title = t("subtitle.cancelled")
+            return
 
         duration_ms = int((time.monotonic() - self._scan_start_time) * 1000)
         duration_text = _format_duration(duration_ms)
@@ -716,6 +785,14 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
 
     def _tick_scan_progress(self) -> None:
         """Aktualisiert den Fortschrittsbalken im Header."""
+        # Nach einem Abbruch bleibt die Abbruch-Meldung stehen. Ohne diese Sperre
+        # ueberschreibt der Timer sie eine halbe Sekunde spaeter wieder mit dem
+        # Fortschritt - dann sieht es aus, als haette die Taste nichts bewirkt,
+        # obwohl der Lauf laengst ausleuft.
+        if self._scan_cancelled:
+            self.sub_title = t("subtitle.cancelling")
+            return
+
         current = self._scan_current
         total = self._scan_total
         bar = _format_progress_bar(current, total)
@@ -1564,8 +1641,11 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
         """Steuert Sichtbarkeit von Bindings."""
+        if action == "cancel_scan":
+            # Abbrechen gibt es nur, solange etwas laeuft.
+            return True if self._scan_running else None
         if action == "start_scan":
-            return None if self._sitemap_loading else True
+            return None if (self._sitemap_loading or self._scan_running) else True
         if action == "load_sitemap_file":
             return None if self._scan_running or self._sitemap_loading else True
         if action == "show_history":
@@ -1610,7 +1690,16 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
     # --- Logging-Bridge -----------------------------------------------------
 
     def _write_log(self, line: str) -> None:
-        """Schreibt eine Zeile ins LogPanel mit auto-verlinkten URLs."""
+        """Schreibt eine Zeile ins LogPanel mit auto-verlinkten URLs.
+
+        Nach einem Abbruch werden die eingerueckten Detailzeilen der auslaufenden
+        Seiten (Konsolen-Meldungen, CDP-Befunde, Scroll-Schritte) verworfen. Sie
+        gehoeren zu Seiten, die ohnehin nicht mehr gewertet werden, rauschen aber
+        sekundenlang weiter - und lassen den Abbruch wirkungslos aussehen. Die
+        Zeilen auf der ersten Ebene (Ergebnis je Seite, Abschluss) bleiben.
+        """
+        if self._scan_cancelled and line.startswith(" "):
+            return
         with contextlib.suppress(Exception):
             self.query_one("#scan-log", LogPanel).write_log(self.linkify_urls(line))
 

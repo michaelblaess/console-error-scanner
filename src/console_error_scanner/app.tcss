@@ -73,6 +73,13 @@ Screen {
     min-height: 8;
 }
 
+/* Tasten, die gerade nicht gehen, ganz ausblenden statt nur auszugrauen.
+   Textual vergibt .-disabled, sobald check_action None liefert - so steht
+   'Scan abbrechen' nur waehrend eines Laufs im Fuss und 'Crawl' nur ausserhalb. */
+Footer FooterKey.-disabled {
+    display: none;
+}
+
 /* Aufmerksamkeits-Blink fuer die Scan-Taste, wenn nach Sitemap-Laden oder
    History-Auswahl startklar. Die Klasse wird per Timer an/aus geschaltet
    (_tick_attention) - terminal-robust statt unzuverlaessigem ANSI-blink. */

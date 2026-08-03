@@ -176,6 +176,7 @@ The bindings are unified across all of Michael's TUIs (`c` = crawl, `s` = settin
 | Key | Action |
 |-------|--------|
 | `c` | Start scan (asks for URL if none is loaded) |
+| `x` | Cancel the running scan - the pages already checked stay in the table (only shown in the footer while a run is in progress) |
 | `m` | Load a local sitemap file via file picker |
 | `s` | Settings dialog |
 | `h` | Scan history |

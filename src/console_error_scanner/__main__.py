@@ -18,6 +18,10 @@ if _is_frozen:
 
 from textual_widgets import reset_terminal_title, set_terminal_title
 
+# Log-Handle offen halten, solange der Prozess laeuft - faulthandler schreibt
+# beim fatalen Signal direkt hinein. Ohne Referenz wuerde der GC es schliessen.
+_fault_log: object | None = None
+
 from console_error_scanner import __version__
 from console_error_scanner.i18n import SUPPORTED_LANGUAGES, load_locale
 from console_error_scanner.models.settings import Settings
@@ -49,6 +53,7 @@ def _silence_proactor_teardown_noise() -> None:
 
 def main() -> None:
     """Haupteinstiegspunkt fuer die CLI."""
+    _enable_faulthandler()
     _silence_proactor_teardown_noise()
 
     settings = Settings.load()
@@ -217,6 +222,7 @@ def main() -> None:
         app.run()
     finally:
         reset_terminal_title()
+        _reset_mouse_tracking()
 
 
 def _preinit_graphics_backend() -> None:
@@ -288,3 +294,49 @@ Keybindings (TUI):
 
 if __name__ == "__main__":
     main()
+
+
+def _enable_faulthandler() -> None:
+    """Faengt HARTE Abstuerze ab, die an Pythons Exception-Handling UND am
+    finally-Block vorbeilaufen: native Access Violation, Stack-Overflow, fataler
+    Interpreter-Fehler.
+
+    faulthandler schreibt den Traceback aller Threads in fault.log - separat vom
+    Terminal, das der Maus-Tracking-Muell sonst unlesbar macht. CrashGuard und
+    _persist_crash greifen nur bei normalen Python-Exceptions, dieser Handler bei
+    allem darunter. Die Startzeile ist die zweite Haelfte der Diagnose: steht
+    danach nichts weiter in der Datei, wurde der Prozess von aussen abgeraeumt.
+    """
+    import contextlib
+    import faulthandler
+    from datetime import datetime
+
+    from console_error_scanner.models.settings import SETTINGS_FILE
+
+    global _fault_log
+    with contextlib.suppress(Exception):
+        verzeichnis = SETTINGS_FILE.parent
+        verzeichnis.mkdir(parents=True, exist_ok=True)
+        # Bewusst offen lassen (Prozess-Lebensdauer) - faulthandler schreibt
+        # beim fatalen Signal direkt in dieses Handle.
+        _fault_log = open(verzeichnis / "fault.log", "a", encoding="utf-8")  # noqa: SIM115
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        _fault_log.write(f"\n===== Start {stamp} - v{__version__} =====\n")
+        _fault_log.flush()
+        faulthandler.enable(file=_fault_log, all_threads=True)
+
+
+def _reset_mouse_tracking() -> None:
+    """Schaltet alle Maus-Tracking-Modi des Terminals ab (idempotent).
+
+    Schreibt bewusst nach sys.__stdout__, NICHT sys.stdout: Textual kapert
+    sys.stdout zur Laufzeit, ein Reset dorthin landet im Nichts und das Terminal
+    bleibt im Maus-Tracking-Modus haengen. Der garantierte Reset passiert im
+    Shell-Wrapper run.ps1 (laeuft auch nach einem harten Crash) - das hier ist
+    der zusaetzliche In-Prozess-Pfad.
+    """
+    stream = sys.__stdout__
+    if stream is None or not stream.isatty():
+        return
+    stream.write("[?1000l[?1002l[?1003l[?1006l[?1015l")
+    stream.flush()
