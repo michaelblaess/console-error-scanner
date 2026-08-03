@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from typing import TextIO
 
 # Frozen-EXE Erkennung (PyInstaller UND Nuitka):
 # PLAYWRIGHT_BROWSERS_PATH muss gesetzt werden BEVOR playwright importiert wird,
@@ -20,7 +21,7 @@ from textual_widgets import reset_terminal_title, set_terminal_title
 
 # Log-Handle offen halten, solange der Prozess laeuft - faulthandler schreibt
 # beim fatalen Signal direkt hinein. Ohne Referenz wuerde der GC es schliessen.
-_fault_log: object | None = None
+_fault_log: TextIO | None = None
 
 from console_error_scanner import __version__
 from console_error_scanner.i18n import SUPPORTED_LANGUAGES, load_locale
@@ -307,6 +308,7 @@ def _enable_faulthandler() -> None:
     allem darunter. Die Startzeile ist die zweite Haelfte der Diagnose: steht
     danach nichts weiter in der Datei, wurde der Prozess von aussen abgeraeumt.
     """
+    import atexit
     import contextlib
     import faulthandler
     from datetime import datetime
@@ -324,6 +326,8 @@ def _enable_faulthandler() -> None:
         _fault_log.write(f"\n===== Start {stamp} - v{__version__} =====\n")
         _fault_log.flush()
         faulthandler.enable(file=_fault_log, all_threads=True)
+        # Gegenstueck zur Startzeile - siehe _write_fault_end.
+        atexit.register(_write_fault_end)
 
 
 def _reset_mouse_tracking() -> None:
@@ -340,3 +344,27 @@ def _reset_mouse_tracking() -> None:
         return
     stream.write("[?1000l[?1002l[?1003l[?1006l[?1015l")
     stream.flush()
+
+
+def _write_fault_end() -> None:
+    """Schreibt die Endzeile der Sitzungsklammer (ueber atexit registriert).
+
+    Erst dieses Gegenstueck zur Startzeile macht die Datei aussagekraeftig:
+
+      Start + Ende            -> sauber beendet
+      Start + Traceback       -> Python-Fehler (der Handler hat ihn gesehen)
+      Start und sonst nichts  -> Prozess hart abgeraeumt
+
+    Unter Windows hilft ein Signalhandler dabei nicht: ein Abbruch von aussen
+    laeuft dort ueber TerminateProcess und liefert dem Ziel kein abfangbares
+    Signal. Die FEHLENDE Endzeile ist der einzige Beleg.
+    """
+    import contextlib
+    from datetime import datetime
+
+    if _fault_log is None:
+        return
+    with contextlib.suppress(Exception):
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        _fault_log.write(f"===== Ende {stamp} =====\n")
+        _fault_log.flush()
