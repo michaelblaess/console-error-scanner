@@ -293,10 +293,6 @@ Keybindings (TUI):
 """
 
 
-if __name__ == "__main__":
-    main()
-
-
 def _enable_faulthandler() -> None:
     """Faengt HARTE Abstuerze ab, die an Pythons Exception-Handling UND am
     finally-Block vorbeilaufen: native Access Violation, Stack-Overflow, fataler
@@ -368,3 +364,7 @@ def _write_fault_end() -> None:
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         _fault_log.write(f"===== Ende {stamp} =====\n")
         _fault_log.flush()
+
+
+if __name__ == "__main__":
+    main()
