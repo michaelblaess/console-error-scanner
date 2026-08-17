@@ -56,6 +56,7 @@
 
   "log.version": "Console Error Scanner v{version}",
   "log.theme_active": "Theme: {name}",
+  "log.theme_unknown": "Theme \"{name}\" ist nicht bekannt - Standard verwendet",
   "log.config": "Concurrency: {concurrency} | Timeout: {timeout}s | Console-Level: {level} | {consent} | {scroll}",
   "log.consent_on": "Consent: AN",
   "log.consent_off": "Consent: AUS",

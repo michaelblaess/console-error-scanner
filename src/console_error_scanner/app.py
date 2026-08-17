@@ -163,8 +163,16 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         # Optionaler Corporate-Proxy (Zscaler) fuer httpx + Playwright.
         self.proxy_url: str = self._settings.proxy_url
 
-        # Theme aus Settings uebernehmen
-        self.theme = self._settings.theme
+        # Theme aus Settings uebernehmen. Ein gespeichertes Theme kann
+        # verschwunden sein: die Bibliothek wurde herabgestuft, das Theme
+        # umbenannt, oder es kam aus einer noch nicht veroeffentlichten
+        # Fassung. Ohne diese Pruefung wirft Textual InvalidThemeError und
+        # die Anwendung startet gar nicht mehr.
+        self._discarded_theme = ""
+        if self._settings.theme in self.available_themes:
+            self.theme = self._settings.theme
+        elif self._settings.theme:
+            self._discarded_theme = self._settings.theme
 
         self._urls: list[str] = []
         self._results: list[ScanResult] = []
@@ -1654,6 +1662,9 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             anzeige = THEME_DISPLAY_NAMES.get(name, name)
             beschriftung = f"{anzeige} ({name})" if anzeige != name else name
             self._write_log(t("log.theme_active", name=beschriftung))
+            if self._discarded_theme:
+                self._write_log(t("log.theme_unknown", name=self._discarded_theme))
+                self._discarded_theme = ""
 
     # --- check_action -------------------------------------------------------
 
