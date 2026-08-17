@@ -290,6 +290,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
 
         # Versionsinfo + Konfiguration ins Log
         self._write_log(f"[bold]{t('log.version', version=__version__)}[/bold]")
+        self._log_theme()
         consent_info = t("log.consent_on") if self.accept_consent else t("log.consent_off")
         scroll_info = t("log.scroll_on") if self.trigger_lazy_load else t("log.scroll_off")
         if not self.respect_robots:
@@ -1636,6 +1637,23 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             return
         self._settings.theme = theme_name
         self._settings.save()
+        self._log_theme()
+
+    def _log_theme(self) -> None:
+        """Schreibt das aktive Theme ins Log.
+
+        Textual zeigt nirgends an, welches Theme gerade laeuft - nach einem
+        Neustart weiss man also nicht, was man vor sich hat. Der technische
+        Name steht mit dabei, weil genau der in den Einstellungen und in der
+        Befehlspalette auftaucht.
+        """
+        with contextlib.suppress(Exception):
+            from textual_themes import THEME_DISPLAY_NAMES
+
+            name = self.theme or ""
+            anzeige = THEME_DISPLAY_NAMES.get(name, name)
+            beschriftung = f"{anzeige} ({name})" if anzeige != name else name
+            self._write_log(t("log.theme_active", name=beschriftung))
 
     # --- check_action -------------------------------------------------------
 
