@@ -55,6 +55,7 @@
   "notify.no_results_for_top": "No results yet for the Top 10 view.",
 
   "log.version": "Console Error Scanner v{version}",
+  "log.theme_active": "Theme: {name}",
   "log.config": "Concurrency: {concurrency} | Timeout: {timeout}s | Console-Level: {level} | {consent} | {scroll}",
   "log.consent_on": "Consent: ON",
   "log.consent_off": "Consent: OFF",
