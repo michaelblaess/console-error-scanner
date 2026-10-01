@@ -17,6 +17,8 @@ import logging
 import os
 from typing import Any
 
+from rich.color import Color
+from rich.style import Style
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
@@ -73,6 +75,22 @@ def _load_graphics_widget_class(backend: str) -> type[Widget] | None:
     return None
 
 
+def _half_block_style(top: Any, bottom: Any) -> Style:
+    """Baut den Stil fuer einen Half-Block aus zwei Pixeln.
+
+    Args:
+        top: (r, g, b) des oberen Pixels, wird zur Vordergrundfarbe.
+        bottom: (r, g, b) des unteren Pixels, wird zur Hintergrundfarbe.
+
+    Returns:
+        Stil mit beiden Farben in Truecolor.
+    """
+    return Style(
+        color=Color.from_rgb(top[0], top[1], top[2]),
+        bgcolor=Color.from_rgb(bottom[0], bottom[1], bottom[2]),
+    )
+
+
 def _render_half_blocks(image_data: bytes, max_width: int, max_height: int) -> list[Text]:
     """Rendert Bilddaten als Unicode-Half-Block-Zeilen."""
     try:
@@ -104,7 +122,9 @@ def _render_half_blocks(image_data: bytes, max_width: int, max_height: int) -> l
         for x in range(new_w):
             top = img.getpixel((x, y))
             bottom = img.getpixel((x, y + 1))
-            line.append(_UPPER_HALF_BLOCK, style=f"rgb{top} on rgb{bottom}")
+            # Farben als Style-Objekt: ein Style-String "rgb(1, 2, 3) on ..." wird an
+            # den Leerzeichen zerlegt, Textual bricht dann mit MissingStyle ab.
+            line.append(_UPPER_HALF_BLOCK, style=_half_block_style(top, bottom))
         lines.append(line)
     return lines
 
