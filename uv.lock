@@ -77,7 +77,7 @@ wheels = [
 
 [[package]]
 name = "console-error-scanner"
-version = "1.16.0"
+version = "1.16.1"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -89,7 +89,7 @@ dependencies = [
     { name = "textual-fspicker" },
     { name = "textual-image", extra = ["textual"] },
     { name = "textual-slider" },
-    { name = "textual-themes" },
+    { name = "textual-themes", extra = ["textual"] },
     { name = "textual-widgets" },
 ]
 
@@ -122,8 +122,8 @@ requires-dist = [
     { name = "textual-fspicker", specifier = ">=0.4.0" },
     { name = "textual-image", extras = ["textual"], specifier = ">=0.12.0" },
     { name = "textual-slider", specifier = ">=0.2.0" },
-    { name = "textual-themes", git = "https://github.com/michaelblaess/textual-themes.git" },
-    { name = "textual-widgets", git = "https://github.com/michaelblaess/textual-widgets.git" },
+    { name = "textual-themes", extras = ["textual"], specifier = ">=0.15.1" },
+    { name = "textual-widgets", specifier = ">=0.32.1" },
 ]
 provides-extras = ["dev"]
 
@@ -871,16 +871,29 @@ wheels = [
 
 [[package]]
 name = "textual-themes"
-version = "0.15.0"
-source = { git = "https://github.com/michaelblaess/textual-themes.git#3f5e5bc29d0cc3f49496269be6d5207aba2eeff5" }
+version = "0.15.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/18/5c/597e34b81d9fed99c6ca4d1ba719b4a4a809ec2685994ec54ada1f95e7f5/textual_themes-0.15.1.tar.gz", hash = "sha256:03d472f39e9d5c2b861fb947e972e9bf6f7e9b9615926dfc812297a3885430e4", size = 45540, upload-time = "2026-10-05T14:52:04.422Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6c/08/54b09ff6fcd64b435b3b75fda230cf6cb54467fe0b2511ca6a7d8e0e86ad/textual_themes-0.15.1-py3-none-any.whl", hash = "sha256:c3b1a5fec74def967fbffdf6e51908e5185bdd4e308c4c466b7052c9c508e7f5", size = 39051, upload-time = "2026-10-05T14:52:03.321Z" },
+]
+
+[package.optional-dependencies]
+textual = [
+    { name = "textual" },
+]
 
 [[package]]
 name = "textual-widgets"
-version = "0.29.0"
-source = { git = "https://github.com/michaelblaess/textual-widgets.git#b5d412ef0b30a5bde8d4f5cda8d7ee7a43f064a8" }
+version = "0.32.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "rich" },
     { name = "textual" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/95/16/e59d1080b43801005aced7556fe19bad0522c99cc58ed63af3d8f927f925/textual_widgets-0.32.1.tar.gz", hash = "sha256:db08c3dad022819bb6ae0927cacdd7b7835d277525eecd729a718990e19bd92f", size = 119494, upload-time = "2026-10-05T14:49:59.783Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f3/29/028da5631ba77ff06323c1e7132273566e543bbf0ac97ce30508921a24ed/textual_widgets-0.32.1-py3-none-any.whl", hash = "sha256:ec1e5bec84f15b6111bece3c6f7290dff4e195b6f1ad55e0edc96aeabdd4a0da", size = 106626, upload-time = "2026-10-05T14:49:58.268Z" },
 ]
 
 [[package]]
