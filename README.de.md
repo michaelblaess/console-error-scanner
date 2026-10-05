@@ -56,6 +56,18 @@ Danach ein neues Terminal öffnen und loslegen:
 console-error-scanner https://www.example.com
 ```
 
+### Ohne Installation starten (uv)
+
+Ist [uv](https://docs.astral.sh/uv/) installiert (Python ab 3.12):
+
+```bash
+uvx --from console-error-scanner playwright install chromium   # einmalig, lädt den Browser
+uvx console-error-scanner
+```
+
+Oder von [PyPI](https://pypi.org/project/console-error-scanner/) installieren mit `pip install console-error-scanner`, danach
+einmalig `playwright install chromium`.
+
 ### Aktualisieren
 
 Einfach den Installer erneut ausführen - erkennt vorhandene Installation und überschreibt.
