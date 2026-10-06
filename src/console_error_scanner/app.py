@@ -189,6 +189,9 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
         # unvollstaendig ist.
         self._scan_cancelled: bool = False
         self._scan_start_time: float = 0
+        # Dauer des letzten Laufs, am Ende eingefroren. Der Report nimmt diesen
+        # Wert - die Zeit bis zum Speichern gehoert nicht zur Scan-Dauer.
+        self._scan_duration_ms: int = 0
         self._scan_current: int = 0
         self._scan_total: int = 0
         self._scan_progress_timer: Timer | None = None
@@ -687,6 +690,10 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
                 self._scan_progress_timer = None
             self.refresh_bindings()
 
+        # Auch ein abgebrochener Lauf hat eine Dauer: seine Teilergebnisse lassen
+        # sich mit 'r' speichern.
+        self._freeze_scan_duration()
+
         # Abgebrochen: die bereits geprueften Seiten bleiben in der Tabelle, damit
         # man sie ansehen kann. Keine Zusammenfassung und kein Site-Score - beide
         # wuerden ein Teilergebnis wie ein vollstaendiges aussehen lassen.
@@ -703,7 +710,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             self.sub_title = t("subtitle.cancelled")
             return
 
-        duration_ms = int((time.monotonic() - self._scan_start_time) * 1000)
+        duration_ms = self._scan_duration_ms
         duration_text = _format_duration(duration_ms)
         summary_data = ScanSummary.from_results(self.sitemap_url, self._results, duration_ms)
 
@@ -757,6 +764,18 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
 
         # Footer-Binding "z Zusammenfassung" jetzt aktivieren (Scan ist durch).
         self.refresh_bindings()
+
+    def _freeze_scan_duration(self) -> None:
+        """Haelt die Dauer des Laufs fest, sobald er endet.
+
+        Vorher rechnete 'r' die Dauer erst beim Speichern aus (Scan-Start bis
+        Tastendruck). Wer den Report spaeter speicherte, bekam die Lesezeit als
+        Scan-Dauer mit in den Report.
+        """
+        if self._scan_start_time <= 0:
+            self._scan_duration_ms = 0
+            return
+        self._scan_duration_ms = int((time.monotonic() - self._scan_start_time) * 1000)
 
     def _open_summary(self) -> None:
         """Berechnet den Site-Score aus den aktuellen Ergebnissen neu und oeffnet
@@ -1235,8 +1254,7 @@ class ConsoleErrorScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App):
             self.notify(t("notify.not_scanned"), severity="warning")
             return
 
-        duration_ms = int((time.monotonic() - self._scan_start_time) * 1000) if self._scan_start_time > 0 else 0
-        summary = ScanSummary.from_results(self.sitemap_url, self._results, duration_ms)
+        summary = ScanSummary.from_results(self.sitemap_url, self._results, self._scan_duration_ms)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         site_name = _sanitize_filename(urlparse(self.sitemap_url).hostname or "unknown")
