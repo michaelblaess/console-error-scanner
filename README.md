@@ -183,7 +183,7 @@ CLI flags override the persisted settings for the current run. Everything except
 - **Settings dialog** (`s`): centralized config for concurrency, timeout, console-level, headless, consent, lazy-loading, whitelist path, user-agent, cookies, page preview, the size-warning threshold (MB), the site-score weighting and the JIRA table format - with info-icon tooltips and a storage-paths tab
 - **Live updates**: Results appear immediately in the table during the scan
 - **Auto-scroll**: The table scrolls along automatically to the currently scanned URL
-- **36 retro themes**: Pick via Ctrl+P or cycle with `t` (persistent)
+- **41 retro themes**: Pick via Ctrl+P or cycle with `t` (persistent)
 - **Multilingual**: German and English (`--lang en`), all UI texts via JSON language files
 - **Crash guard**: Unhandled exceptions show a copyable error screen instead of killing the app
 - **Scan history**: Previous scan URLs can be restored via `h`
@@ -449,7 +449,7 @@ src/console_error_scanner/
                         Linux: xclip/wl-copy)
 ```
 
-Built on [textual-themes](https://github.com/michaelblaess/textual-themes) (36 retro palettes),
+Built on [textual-themes](https://github.com/michaelblaess/textual-themes) (41 retro palettes),
 [textual-widgets](https://github.com/michaelblaess/textual-widgets) (CrashGuard, LogPanel,
 BaseSettingsScreen, AboutScreen, UrlInputScreen, ContextMenuScreen, Splitters, InfoHeader,
 ClickableLinksMixin) and [textual-fspicker](https://github.com/davep/textual-fspicker)

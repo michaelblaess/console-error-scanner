@@ -184,7 +184,7 @@ CLI-Flags überschreiben die persistierten Einstellungen für den aktuellen Lauf
 - **Einstellungs-Dialog** (`s`): zentrale Konfiguration für Concurrency, Timeout, Console-Level, Headless, Consent, Lazy-Loading, Whitelist-Pfad, User-Agent, Cookies, Seiten-Vorschau, den Größen-Warnschwellwert (MB), die Site-Score-Gewichtung und das JIRA-Tabellenformat - mit Info-Icon-Tooltips und Speicherort-Tab
 - **Live-Updates**: Ergebnisse erscheinen sofort während des Scans in der Tabelle
 - **Auto-Scroll**: Tabelle scrollt automatisch zur aktuell gescannten URL mit
-- **36 Retro-Themes**: Ctrl+P öffnet den Theme-Picker, `t` schaltet zum nächsten weiter (persistent)
+- **41 Retro-Themes**: Ctrl+P öffnet den Theme-Picker, `t` schaltet zum nächsten weiter (persistent)
 - **Mehrsprachig**: Deutsch und Englisch (`--lang en`), alle UI-Texte über JSON-Sprachdateien
 - **Crash-Guard**: Unbehandelte Exceptions zeigen einen kopierbaren Fehler-Dialog statt die App abstürzen zu lassen
 - **Scan-History**: Vorherige Scan-URLs können per `h` wiederhergestellt werden
@@ -450,7 +450,7 @@ src/console_error_scanner/
                         Linux: xclip/wl-copy)
 ```
 
-Basiert auf [textual-themes](https://github.com/michaelblaess/textual-themes) (36 Retro-Paletten),
+Basiert auf [textual-themes](https://github.com/michaelblaess/textual-themes) (41 Retro-Paletten),
 [textual-widgets](https://github.com/michaelblaess/textual-widgets) (CrashGuard, LogPanel,
 BaseSettingsScreen, AboutScreen, UrlInputScreen, ContextMenuScreen, Splitter, InfoHeader,
 ClickableLinksMixin) und [textual-fspicker](https://github.com/davep/textual-fspicker)
