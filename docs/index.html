@@ -147,6 +147,11 @@
     }
 
     /* ── Page-specific: Last-Hinweis und Verantwortung ── */
+    .teaser-play { display: block; position: relative; width: 100%; padding: 0; border: 0; background: #000; cursor: pointer; aspect-ratio: 16 / 9; }
+    .teaser-play img, .teaser iframe { display: block; width: 100%; height: 100%; border: 0; aspect-ratio: 16 / 9; }
+    .teaser-icon { position: absolute; inset: 0; margin: auto; width: 88px; height: 88px; border-radius: 50%; background: rgba(0,0,0,0.65); color: #fff; display: flex; align-items: center; justify-content: center; transition: transform 0.15s; }
+    .teaser-icon svg { width: 44px; height: 44px; margin-left: 4px; }
+    .teaser-play:hover .teaser-icon, .teaser-play:focus-visible .teaser-icon { transform: scale(1.08); background: var(--accent); }
     .load-warning {
       max-width: calc(var(--max-width) - 64px); margin: 0 auto 40px; padding: 20px 24px;
       border: 1px solid var(--accent); border-radius: var(--radius-lg);
@@ -193,7 +198,24 @@
         GitHub Repository
       </a>
       <a href="#install" class="btn btn-secondary">Installation</a>
-      <a href="https://youtu.be/4qMfiX-kgLs" class="btn btn-secondary">Video ansehen (50 Sekunden, YouTube)</a>
+      <a href="#video" class="btn btn-secondary">Video ansehen (50 Sekunden)</a>
+    </div>
+  </section>
+
+  <!-- ═══ VIDEO ═══ -->
+  <section class="gallery teaser" id="video">
+    <div class="gallery-frame">
+      <div class="gallery-bar">
+        <div class="gallery-dot r"></div>
+        <div class="gallery-dot y"></div>
+        <div class="gallery-dot g"></div>
+        <div class="gallery-bar-title">Console Error Scanner in 50 Sekunden</div>
+      </div>
+      <button type="button" class="teaser-play" id="teaser-play" aria-label="Video abspielen (lädt YouTube)">
+        <img src="video/teaser-poster.jpg" alt="Console Error Scanner - Teaser-Video, 50 Sekunden" width="1280" height="720">
+        <span class="teaser-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>
+      </button>
+      <div class="gallery-caption">Englisch mit deutschen Untertiteln, mit Ton. Der Klick lädt das Video von YouTube, erst dann gehen Daten dorthin. Oder direkt <a href="https://youtu.be/4qMfiX-kgLs" style="color:var(--accent)">auf YouTube ansehen</a>.</div>
     </div>
   </section>
 
@@ -545,5 +567,16 @@
       });
     }
   </script>
+<script>
+  // YouTube erst nach dem Klick laden, vorher geht keine Anfrage dorthin
+  document.getElementById('teaser-play').addEventListener('click', function () {
+    var frame = document.createElement('iframe');
+    frame.src = 'https://www.youtube-nocookie.com/embed/4qMfiX-kgLs?autoplay=1&cc_load_policy=1&cc_lang_pref=de&rel=0';
+    frame.title = 'Console Error Scanner in 50 Sekunden';
+    frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    frame.allowFullscreen = true;
+    this.replaceWith(frame);
+  });
+</script>
 </body>
 </html>
