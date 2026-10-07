@@ -19,6 +19,10 @@
 TUI tool for automatically scanning websites for JavaScript console errors and HTTP errors (404, 5xx).
 The input is a website URL or sitemap URL (XML). For domain URLs, the sitemap is found automatically via robots.txt and typical paths. Results are displayed live in a terminal UI and can be exported as HTML and JSON reports, or copied as a JIRA table (Markdown or wiki markup) straight to the clipboard.
 
+https://github.com/user-attachments/assets/3c950da9-a78f-4d6f-8eba-57d1b32c4dc3
+
+<p align="center"><sub><a href="https://youtu.be/4qMfiX-kgLs">Also on YouTube</a></sub></p>
+
 ## Screenshots
 
 ### Main view

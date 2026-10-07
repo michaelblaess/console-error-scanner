@@ -19,6 +19,10 @@
 TUI-Tool zum automatischen Scannen von Websites auf JavaScript Console-Errors und HTTP-Fehler (404, 5xx).
 Eingabe ist eine Website-URL oder Sitemap-URL (XML). Bei Domain-URLs wird die Sitemap automatisch über robots.txt und typische Pfade gefunden. Ergebnisse werden live in einer Terminal-UI angezeigt und können als HTML- und JSON-Reports exportiert oder als JIRA-Tabelle (Markdown oder Wiki Markup) direkt in die Zwischenablage kopiert werden.
 
+https://github.com/user-attachments/assets/3c950da9-a78f-4d6f-8eba-57d1b32c4dc3
+
+<p align="center"><sub><a href="https://youtu.be/4qMfiX-kgLs">Auch auf YouTube</a></sub></p>
+
 ## Screenshots
 
 ### Hauptansicht

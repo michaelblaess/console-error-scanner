@@ -184,7 +184,7 @@
 
   <!-- ═══ HERO ═══ -->
   <section class="hero">
-    <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v1.13.0</div>
+    <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v1.16.2</div>
     <h1>Console <span class="accent">Error</span><br>Scanner</h1>
     <p class="hero-description">Scannt Websites automatisch auf JavaScript Console-Errors, HTTP-Fehler und CSP-Violations — mit Live-Ergebnissen, Top-10-Analyse und Scan-History direkt im Terminal.</p>
     <div class="hero-actions">
@@ -193,6 +193,7 @@
         GitHub Repository
       </a>
       <a href="#install" class="btn btn-secondary">Installation</a>
+      <a href="https://youtu.be/4qMfiX-kgLs" class="btn btn-secondary">Video ansehen (50 Sekunden, YouTube)</a>
     </div>
   </section>
 
@@ -277,6 +278,26 @@
         <p>3-Phasen-Consent für Usercentrics, OneTrust, CookieBot und generische Banner — automatisch oder nur verstecken.</p>
       </div>
       <div class="feature-card">
+        <div class="feature-icon">🖼️</div>
+        <h3>Seitenvorschau</h3>
+        <p>Zeigt die markierte Seite als echtes Bild direkt im Terminal (Sixel und Kitty-Grafik), in anderen Terminals als Pixelgrafik. Rechtsklick kopiert das Bild in die Zwischenablage.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏁</div>
+        <h3>Site-Score</h3>
+        <p>Nach jedem Scan ein Wert von 0 bis 100, berechnet aus dem Anteil fehlerfreier Seiten und dem durchschnittlichen Seitengewicht. Die Gewichtung ist einstellbar.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🥗</div>
+        <h3>Diät-Berater</h3>
+        <p>Zeigt je Seite die größten Dateien als Balken - so siehst Du sofort, was eine Seite schwer macht.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚖️</div>
+        <h3>Seitengewicht und Ladezeit</h3>
+        <p>Eigene Spalten für Übertragungsgröße, Ladezeit und Zahl der Anfragen, alle sortierbar. Ein einstellbarer Schwellwert markiert zu schwere Seiten rot.</p>
+      </div>
+      <div class="feature-card">
         <div class="feature-icon">📋</div>
         <h3>HTML & JSON Reports</h3>
         <p>Exportiert Scan-Ergebnisse als übersichtlichen HTML-Report oder maschinenlesbares JSON.</p>
@@ -294,12 +315,12 @@
       <div class="feature-card">
         <div class="feature-icon">🌐</div>
         <h3>Mehrsprachig</h3>
-        <p>Deutsch und Englisch — alle UI-Texte, Log-Meldungen und Reports ueber JSON-Sprachdateien steuerbar (<code>--lang en</code>).</p>
+        <p>Deutsch und Englisch — alle UI-Texte, Log-Meldungen und Reports über JSON-Sprachdateien steuerbar (<code>--lang en</code>).</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🎨</div>
         <h3>Themes</h3>
-        <p>Anpassbare Farbthemen über <a href="https://github.com/michaelblaess/textual-themes" style="color:var(--accent)">textual-themes</a> — die TUI-Oberfläche lässt sich visuell individualisieren.</p>
+        <p>41 Retro-Themes über <a href="https://github.com/michaelblaess/textual-themes" style="color:var(--accent)">textual-themes</a> — die TUI-Oberfläche lässt sich visuell individualisieren.</p>
       </div>
     </div>
   </section>
@@ -399,7 +420,7 @@
           </tr>
           <tr>
             <td><code>--lang</code></td>
-            <td>Sprache der Oberflaeche (de, en)</td>
+            <td>Sprache der Oberfläche (de, en)</td>
             <td class="default">de</td>
           </tr>
           <tr>
