@@ -26,13 +26,21 @@ https://github.com/user-attachments/assets/3c950da9-a78f-4d6f-8eba-57d1b32c4dc3
 ## Screenshots
 
 ### Hauptansicht
-![Hauptansicht](docs/screenshots/01-main.png)
+![Hauptansicht](docs/screenshots/01-main-de.png)
 
 ### Top 10 Fehler
-![Top 10 Fehler](docs/screenshots/02-top-10-errors.png)
+![Top 10 Fehler](docs/screenshots/02-top-10-errors-de.png)
 
 ### Scan-History
-![Scan-History](docs/screenshots/03-history.png)
+![Scan-History](docs/screenshots/03-history-de.png)
+
+### Site-Score
+![Site-Score](docs/screenshots/04-site-score-de.png)
+
+### Diät-Ratgeber
+![Diät-Ratgeber](docs/screenshots/05-diet-advisor-de.png)
+
+Die Bilder zeigen den Scan eines erfundenen Demo-Shops, die Fehler sind absichtlich eingebaut.
 
 ## Installation
 

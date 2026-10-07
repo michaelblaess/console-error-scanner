@@ -34,6 +34,14 @@ https://github.com/user-attachments/assets/3c950da9-a78f-4d6f-8eba-57d1b32c4dc3
 ### Scan history
 ![Scan history](docs/screenshots/03-history.png)
 
+### Site score
+![Site score](docs/screenshots/04-site-score.png)
+
+### Diet advisor
+![Diet advisor](docs/screenshots/05-diet-advisor.png)
+
+The screenshots show a scan of a fictional demo shop with errors planted on purpose.
+
 ## Installation
 
 No dependencies needed - no Python, no Git, no Chrome.
